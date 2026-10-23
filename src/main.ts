@@ -39,6 +39,19 @@ const phaserConfig: Phaser.Types.Core.GameConfig = {
 
 const game = new Phaser.Game(phaserConfig);
 
-game.scene.start('MainScene', { gameController, gameConfig });
+// Expose game globally for debug purposes
+(window as any).game = game;
+(window as any).gameController = gameController;
+(window as any).gameConfig = gameConfig;
+
+// Check for debug parameters
+const urlParams = new URLSearchParams(window.location.search);
+const debugScene = urlParams.get('scene');
+
+if (debugScene === 'upgrade') {
+  game.scene.start('UpgradeScene', { gameController, gameConfig });
+} else {
+  game.scene.start('MainScene', { gameController, gameConfig });
+}
 
 export { game, platform, gameController };

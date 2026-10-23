@@ -21,6 +21,9 @@ export class MainScene extends Phaser.Scene {
   private activeBalls: number = 0;
   private scorePopups: Phaser.GameObjects.Text[] = [];
   private comboText!: Phaser.GameObjects.Text;
+  
+  // Rail margins for physics walls alignment
+  private readonly RAIL_MARGIN = 50;
 
   constructor() {
     super({ key: 'MainScene' });
@@ -66,17 +69,95 @@ export class MainScene extends Phaser.Scene {
     this.createAimingLine();
     this.setupInput();
     this.setupCollisions();
+    
+    // Debug mode: seed balls via URL param ?debug=seed
+    this.checkDebugMode();
+  }
+  
+  private checkDebugMode() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const debugMode = urlParams.get('debug');
+    
+    if (debugMode === 'seed') {
+      // Spawn balls of different levels for testing
+      this.time.delayedCall(500, () => {
+        this.seedDebugBalls();
+      });
+    }
+  }
+  
+  private seedDebugBalls() {
+    console.log('Debug mode: Seeding balls of levels 1-10');
+    
+    const positions = [
+      { x: 200, y: 400, level: 1 },
+      { x: 280, y: 450, level: 2 },
+      { x: 360, y: 400, level: 3 },
+      { x: 440, y: 450, level: 4 },
+      { x: 520, y: 400, level: 5 },
+      { x: 250, y: 600, level: 6 },
+      { x: 350, y: 600, level: 7 },
+      { x: 450, y: 600, level: 8 },
+      { x: 300, y: 800, level: 9 },
+      { x: 420, y: 800, level: 10 }
+    ];
+    
+    positions.forEach(pos => {
+      this.spawnBall(pos.x, pos.y, pos.level);
+    });
+  }
+  
+  private spawnBall(x: number, y: number, level: number) {
+    const ballConfig = this.gameController.getBallConfig(level);
+    if (!ballConfig) return;
+    
+    const state = this.gameController.getGameState();
+    const radius = ballConfig.radius * state.ballSizeMultiplier;
+    
+    // Use sprite if available, otherwise use procedural circle
+    let sprite: Phaser.GameObjects.Arc | Phaser.GameObjects.Image;
+    const spriteKey = `ball_${level}`;
+    
+    if (ballConfig.sprite && this.textures.exists(spriteKey)) {
+      sprite = this.add.image(x, y, spriteKey);
+      sprite.setDisplaySize(radius * 2, radius * 2);
+    } else {
+      sprite = this.add.circle(x, y, radius, ballConfig.color);
+    }
+    
+    this.matter.add.gameObject(sprite, {
+      shape: { type: 'circle', radius },
+      restitution: this.gameConfig.physics.restitution,
+      friction: this.gameConfig.physics.friction,
+      frictionAir: this.gameConfig.physics.frictionAir,
+      density: this.gameConfig.physics.density,
+      label: `ball_${level}`
+    });
+    
+    const body = sprite.body as MatterJS.BodyType;
+    const ball: Ball = { body, sprite, level };
+    
+    this.balls.push(ball);
   }
 
   private createPegBoard() {
     const { pegRows, pegColumns, pegRadius, pegColor, pegStrokeColor, pegStrokeWidth, startY, spacing } = this.gameConfig.board;
     
+    // Calculate total width needed for the peg grid
+    // For even rows: pegColumns pegs, for odd rows: pegColumns - 1
+    const maxCols = pegColumns;
+    const gridWidth = (maxCols - 1) * spacing;
+    
+    // Center the grid horizontally between the rails
+    const playAreaWidth = this.gameConfig.width - (this.RAIL_MARGIN * 2);
+    const startX = this.RAIL_MARGIN + (playAreaWidth - gridWidth) / 2;
+    
     for (let row = 0; row < pegRows; row++) {
-      const offsetX = (row % 2) * (spacing / 2);
+      const rowOffset = (row % 2) * (spacing / 2);
       const cols = row % 2 === 0 ? pegColumns : pegColumns - 1;
       
       for (let col = 0; col < cols; col++) {
-        const x = offsetX + spacing + col * spacing;
+        const x = startX + rowOffset + col * spacing;
         const y = startY + row * (spacing * 0.8);
         
         const peg = this.add.circle(x, y, pegRadius, pegColor);
@@ -94,15 +175,22 @@ export class MainScene extends Phaser.Scene {
       }
     }
 
+    // Physics walls aligned with visual rails
     const wallThickness = 10;
-    this.matter.add.rectangle(wallThickness / 2, this.gameConfig.height / 2, wallThickness, this.gameConfig.height, {
+    
+    // Left wall at inner edge of left rail
+    this.matter.add.rectangle(this.RAIL_MARGIN, this.gameConfig.height / 2, wallThickness, this.gameConfig.height, {
       isStatic: true,
       restitution: 0.8
     });
-    this.matter.add.rectangle(this.gameConfig.width - wallThickness / 2, this.gameConfig.height / 2, wallThickness, this.gameConfig.height, {
+    
+    // Right wall at inner edge of right rail
+    this.matter.add.rectangle(this.gameConfig.width - this.RAIL_MARGIN, this.gameConfig.height / 2, wallThickness, this.gameConfig.height, {
       isStatic: true,
       restitution: 0.8
     });
+    
+    // Bottom floor
     this.matter.add.rectangle(this.gameConfig.width / 2, this.gameConfig.height - wallThickness / 2, this.gameConfig.width, wallThickness, {
       isStatic: true,
       restitution: 0.3
