@@ -3,6 +3,7 @@ export interface BallLevel {
   radius: number;
   color: number;
   score: number;
+  sprite?: string;
 }
 
 export interface LevelConfig {
@@ -36,6 +37,7 @@ export interface GameState {
 export interface GameConfig {
   width: number;
   height: number;
+  background?: string;
   physics: PhysicsConfig;
   board: BoardConfig;
   launcher: LauncherConfig;
@@ -55,6 +57,8 @@ export interface BoardConfig {
   pegColumns: number;
   pegRadius: number;
   pegColor: number;
+  pegStrokeColor?: number;
+  pegStrokeWidth?: number;
   startY: number;
   endY: number;
   spacing: number;

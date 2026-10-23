@@ -343,6 +343,95 @@ const platform: IPlatform =
 5. **代码和注释使用英文**
 6. **配置文件使用JSON，易于AI生成**
 
+## AI 美术管线
+
+本项目使用AI生成的美术资源，通过自动化脚本处理和集成。
+
+### 美术资源
+
+- `art/balls_sheet.jpg` - 10个球体角色的原始精灵图（5x2网格，1280x720）
+- `art/background.jpg` - 糖果风格的游戏背景（720x1280）
+- `assets/sprites/ball_*.png` - 处理后的透明PNG精灵（256x256）
+- `assets/background.jpg` - 优化后的背景图（83.1 KB）
+
+### 重新生成精灵
+
+当美术资源更新时，运行精灵切片脚本：
+
+```bash
+python3 scripts/slice_sprites.py
+```
+
+脚本功能（使用scipy图像处理）：
+- 从精灵图中提取10个球体（按阅读顺序：5列×2行）
+- 边界连接的亮色背景移除（flood-fill from edges）
+- 连通分量分析，每个网格单元取最大组件
+- 星星特殊处理：包含周围的闪光效果
+- 填充空洞，裁剪到精确边界框
+- 在正方形画布上居中（2%填充）
+- 缩放到256x256高分辨率（LANCZOS插值）
+- 生成预览图 `art/sprites_preview.png`（不提交到git）
+
+**依赖**: `pip install numpy scipy pillow`
+
+### 球体名称映射
+
+| 等级 | 名称 | 文件名 | 描述 |
+|-----|------|--------|------|
+| 1 | 蓝莓 (blueberry) | `ball_1_blueberry.png` | 可爱的蓝色浆果 |
+| 2 | 樱桃 (cherry) | `ball_2_cherry.png` | 红色樱桃带叶子 |
+| 3 | 草莓 (strawberry) | `ball_3_strawberry.png` | 带籽的草莓 |
+| 4 | 青柠 (lime) | `ball_4_lime.png` | 绿色青柠 |
+| 5 | 橙子 (orange) | `ball_5_orange.png` | 橙色橙子 |
+| 6 | 桃子 (peach) | `ball_6_peach.png` | 粉色桃子 |
+| 7 | 苹果 (apple) | `ball_7_apple.png` | 红色苹果 |
+| 8 | 椰子 (coconut) | `ball_8_coconut.png` | 棕色椰子 |
+| 9 | 西瓜 (watermelon) | `ball_9_watermelon.png` | 绿色西瓜 |
+| 10 | 星星果 (star) | `ball_10_star.png` | 金色星星果带闪光 |
+
+### 替换美术资源
+
+1. 将新的精灵图保存为 `art/balls_sheet.jpg`（**必须是5x2网格**，白色背景）
+2. 将新的背景保存为 `art/background.jpg`（推荐720x1280竖屏）
+3. 运行 `node scripts/slice-sprites.js`
+4. 生成的资源会自动替换 `assets/` 目录下的文件
+
+### 配置精灵路径
+
+精灵路径在 `src/config/ballLevels.json` 中配置：
+
+```json
+{
+  "level": 1,
+  "radius": 12,
+  "color": 16738923,
+  "score": 10,
+  "sprite": "assets/sprites/ball_1_blueberry.png"
+}
+```
+
+**配置说明**：
+- `sprite` 字段为**可选**，如果不存在则使用程序生成的圆形
+- 物理碰撞仍然使用圆形（性能优化，由`radius`决定）
+- 精灵会自动缩放到对应的球体直径（`radius * 2`）
+- 纹理加载通过平台抽象层，支持小游戏迁移
+
+### 资源大小
+
+当前资源总大小：**~460KB**（压缩前）
+- 背景：83.1 KB
+- 10个精灵：约 28-38 KB 每个（总计 ~346 KB）
+
+**符合微信/抖音小游戏的包体积要求（主包<4MB）** ✅
+
+### 视觉设计说明
+
+- **钉子**：10px半径的糖果色圆形，带白色描边高光
+- **背景**：粉紫色渐变糖果墙，带糖果木边框
+- **钉板布局**：9行×7列交错排列，位于背景边框内（280-1000px高度）
+- **HUD面板**：半透明黑色面板（alpha 0.5），确保文字可读
+- **文字样式**：白色/彩色文字带黑色描边（4-6px）
+
 ## 下一步开发
 
 - [ ] 添加音效和背景音乐
