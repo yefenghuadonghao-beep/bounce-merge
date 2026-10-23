@@ -1,0 +1,30 @@
+{
+  "width": 720,
+  "height": 1280,
+  "physics": {
+    "gravity": 1.5,
+    "restitution": 0.6,
+    "friction": 0.01,
+    "frictionAir": 0.001,
+    "density": 0.001
+  },
+  "board": {
+    "pegRows": 10,
+    "pegColumns": 8,
+    "pegRadius": 5,
+    "pegColor": 14673641,
+    "startY": 200,
+    "endY": 900,
+    "spacing": 70
+  },
+  "launcher": {
+    "startX": 360,
+    "startY": 100,
+    "aimLineLength": 150,
+    "launchForce": 0.015
+  },
+  "scoring": {
+    "comboDecayTime": 2000,
+    "comboMultiplier": 1.5
+  }
+}
