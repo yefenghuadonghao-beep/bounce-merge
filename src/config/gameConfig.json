@@ -1,6 +1,7 @@
 {
   "width": 720,
   "height": 1280,
+  "background": "assets/background.jpg",
   "physics": {
     "gravity": 1.5,
     "restitution": 0.6,
@@ -12,7 +13,7 @@
     "pegRows": 10,
     "pegColumns": 8,
     "pegRadius": 5,
-    "pegColor": 14673641,
+    "pegColor": 16761385,
     "startY": 200,
     "endY": 900,
     "spacing": 70

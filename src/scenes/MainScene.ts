@@ -4,7 +4,7 @@ import { GameConfig } from '../types';
 
 interface Ball {
   body: MatterJS.BodyType;
-  sprite: Phaser.GameObjects.Arc;
+  sprite: Phaser.GameObjects.Arc | Phaser.GameObjects.Image;
   level: number;
 }
 
@@ -35,11 +35,31 @@ export class MainScene extends Phaser.Scene {
     this.activeBalls = 0;
   }
 
+  preload() {
+    // Load background if specified
+    if (this.gameConfig.background) {
+      this.load.image('background', this.gameConfig.background);
+    }
+
+    // Load ball sprites
+    for (let level = 1; level <= this.gameController.getMaxBallLevel(); level++) {
+      const ballConfig = this.gameController.getBallConfig(level);
+      if (ballConfig?.sprite) {
+        this.load.image(`ball_${level}`, ballConfig.sprite);
+      }
+    }
+  }
+
   create() {
     this.matter.world.setBounds(0, 0, this.gameConfig.width, this.gameConfig.height);
     this.matter.world.setGravity(0, this.gameConfig.physics.gravity);
 
-    this.add.rectangle(0, 0, this.gameConfig.width, this.gameConfig.height, 0x0f1419).setOrigin(0);
+    // Add background image or solid color
+    if (this.gameConfig.background && this.textures.exists('background')) {
+      this.add.image(0, 0, 'background').setOrigin(0).setDisplaySize(this.gameConfig.width, this.gameConfig.height);
+    } else {
+      this.add.rectangle(0, 0, this.gameConfig.width, this.gameConfig.height, 0x0f1419).setOrigin(0);
+    }
 
     this.createPegBoard();
     this.createUI();
@@ -87,26 +107,35 @@ export class MainScene extends Phaser.Scene {
     const state = this.gameController.getGameState();
     const config = this.gameController.getLevelConfig();
 
+    // Add text with stroke for better readability over background
     this.uiTexts.level = this.add.text(20, 20, `关卡 ${state.currentLevel}`, {
       fontSize: '28px',
       color: '#ffffff',
-      fontStyle: 'bold'
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 4
     });
 
     this.uiTexts.score = this.add.text(20, 55, `分数: ${state.score} / ${config.targetScore}`, {
       fontSize: '24px',
-      color: '#feca57'
+      color: '#feca57',
+      stroke: '#000000',
+      strokeThickness: 4
     });
 
     this.uiTexts.shots = this.add.text(this.gameConfig.width - 20, 20, `剩余: ${state.shotsRemaining}`, {
       fontSize: '24px',
-      color: '#48dbfb'
+      color: '#48dbfb',
+      stroke: '#000000',
+      strokeThickness: 4
     }).setOrigin(1, 0);
 
     this.comboText = this.add.text(this.gameConfig.width / 2, 150, '', {
       fontSize: '48px',
       color: '#ff6b6b',
-      fontStyle: 'bold'
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 6
     }).setOrigin(0.5).setVisible(false);
   }
 
@@ -189,9 +218,22 @@ export class MainScene extends Phaser.Scene {
     if (!ballConfig) return;
 
     const radius = ballConfig.radius * state.ballSizeMultiplier;
-    const sprite = this.add.circle(this.gameConfig.launcher.startX, this.gameConfig.launcher.startY, radius, ballConfig.color);
+    const x = this.gameConfig.launcher.startX;
+    const y = this.gameConfig.launcher.startY;
+    
+    // Use sprite if available, otherwise use procedural circle
+    let sprite: Phaser.GameObjects.Arc | Phaser.GameObjects.Image;
+    const spriteKey = `ball_${level}`;
+    
+    if (ballConfig.sprite && this.textures.exists(spriteKey)) {
+      sprite = this.add.image(x, y, spriteKey);
+      sprite.setDisplaySize(radius * 2, radius * 2);
+    } else {
+      sprite = this.add.circle(x, y, radius, ballConfig.color);
+    }
     
     this.matter.add.gameObject(sprite, {
+      shape: { type: 'circle', radius },
       restitution: this.gameConfig.physics.restitution,
       friction: this.gameConfig.physics.friction,
       frictionAir: this.gameConfig.physics.frictionAir,
@@ -216,12 +258,6 @@ export class MainScene extends Phaser.Scene {
     this.gameController.useShot();
     this.updateUI();
     this.canShoot = false;
-
-    this.add.text(sprite.x, sprite.y, level.toString(), {
-      fontSize: '16px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
   }
 
   private setupCollisions() {
@@ -269,9 +305,20 @@ export class MainScene extends Phaser.Scene {
 
     if (newLevel <= this.gameController.getMaxBallLevel()) {
       const radius = newConfig.radius * state.ballSizeMultiplier;
-      const sprite = this.add.circle(midX, midY, radius, newConfig.color);
+      
+      // Use sprite if available, otherwise use procedural circle
+      let sprite: Phaser.GameObjects.Arc | Phaser.GameObjects.Image;
+      const spriteKey = `ball_${newLevel}`;
+      
+      if (newConfig.sprite && this.textures.exists(spriteKey)) {
+        sprite = this.add.image(midX, midY, spriteKey);
+        sprite.setDisplaySize(radius * 2, radius * 2);
+      } else {
+        sprite = this.add.circle(midX, midY, radius, newConfig.color);
+      }
       
       this.matter.add.gameObject(sprite, {
+        shape: { type: 'circle', radius },
         restitution: this.gameConfig.physics.restitution,
         friction: this.gameConfig.physics.friction,
         frictionAir: this.gameConfig.physics.frictionAir,
@@ -289,12 +336,6 @@ export class MainScene extends Phaser.Scene {
 
       this.balls.push(ball);
       this.activeBalls++;
-
-      this.add.text(sprite.x, sprite.y, newLevel.toString(), {
-        fontSize: '16px',
-        color: '#ffffff',
-        fontStyle: 'bold'
-      }).setOrigin(0.5);
     }
 
     this.updateUI();

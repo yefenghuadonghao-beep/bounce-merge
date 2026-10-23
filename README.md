@@ -343,6 +343,80 @@ const platform: IPlatform =
 5. **代码和注释使用英文**
 6. **配置文件使用JSON，易于AI生成**
 
+## AI 美术管线
+
+本项目使用AI生成的美术资源，通过自动化脚本处理和集成。
+
+### 美术资源
+
+- `art/balls_sheet.jpg` - 10个球体角色的原始精灵图（5x2网格）
+- `art/background.jpg` - 糖果风格的游戏背景（720x1280）
+- `assets/sprites/ball_*.png` - 处理后的透明PNG精灵（128x128）
+- `assets/background.jpg` - 优化后的背景图
+
+### 重新生成精灵
+
+当美术资源更新时，运行精灵切片脚本：
+
+```bash
+node scripts/slice-sprites.js
+```
+
+脚本功能：
+- 从精灵图中提取10个球体（按阅读顺序）
+- 移除白色背景，生成透明PNG
+- 自动裁剪和填充为正方形
+- 缩放到128x128，压缩优化
+- 同时优化背景图为720x1280
+
+### 球体名称映射
+
+| 等级 | 名称 | 文件名 |
+|-----|------|--------|
+| 1 | 蓝莓 (blueberry) | `ball_1_blueberry.png` |
+| 2 | 樱桃 (cherry) | `ball_2_cherry.png` |
+| 3 | 草莓 (strawberry) | `ball_3_strawberry.png` |
+| 4 | 青柠 (lime) | `ball_4_lime.png` |
+| 5 | 橙子 (orange) | `ball_5_orange.png` |
+| 6 | 桃子 (peach) | `ball_6_peach.png` |
+| 7 | 苹果 (apple) | `ball_7_apple.png` |
+| 8 | 椰子 (coconut) | `ball_8_coconut.png` |
+| 9 | 西瓜 (watermelon) | `ball_9_watermelon.png` |
+| 10 | 星星果 (star) | `ball_10_star.png` |
+
+### 替换美术资源
+
+1. 将新的精灵图保存为 `art/balls_sheet.jpg`（必须是5x2网格）
+2. 将新的背景保存为 `art/background.jpg`（推荐720x1280）
+3. 运行 `node scripts/slice-sprites.js`
+4. 生成的资源会自动替换 `assets/` 目录下的文件
+
+### 配置精灵路径
+
+精灵路径在 `src/config/ballLevels.json` 中配置：
+
+```json
+{
+  "level": 1,
+  "radius": 12,
+  "color": 16738923,
+  "score": 10,
+  "sprite": "assets/sprites/ball_1_blueberry.png"
+}
+```
+
+- `sprite` 字段可选，如果不存在则使用程序生成的圆形
+- 物理碰撞仍然使用圆形（性能优化）
+- 精灵会自动缩放到对应的球体半径
+
+### 资源大小
+
+当前资源总大小：~460KB（压缩前）
+- 背景：83.1 KB
+- 10个精灵：约 28-38 KB 每个
+
+符合微信/抖音小游戏的包体积要求（主包<4MB）。
+
 ## 下一步开发
 
 - [ ] 添加音效和背景音乐

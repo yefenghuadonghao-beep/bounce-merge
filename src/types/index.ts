@@ -3,6 +3,7 @@ export interface BallLevel {
   radius: number;
   color: number;
   score: number;
+  sprite?: string;
 }
 
 export interface LevelConfig {
@@ -36,6 +37,7 @@ export interface GameState {
 export interface GameConfig {
   width: number;
   height: number;
+  background?: string;
   physics: PhysicsConfig;
   board: BoardConfig;
   launcher: LauncherConfig;
