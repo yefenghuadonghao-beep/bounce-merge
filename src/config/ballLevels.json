@@ -4,69 +4,69 @@
     "radius": 26,
     "color": 16738923,
     "score": 10,
-    "sprite": "assets/sprites/ball_1_blueberry.png"
+    "sprite": "assets/characters/office-mochi.png"
   },
   {
     "level": 2,
     "radius": 32,
     "color": 16698967,
     "score": 25,
-    "sprite": "assets/sprites/ball_2_cherry.png"
+    "sprite": "assets/characters/office-mochi.png"
   },
   {
     "level": 3,
     "radius": 38,
     "color": 4774907,
     "score": 50,
-    "sprite": "assets/sprites/ball_3_strawberry.png"
+    "sprite": "assets/characters/office-mochi.png"
   },
   {
     "level": 4,
     "radius": 44,
     "color": 1954209,
     "score": 100,
-    "sprite": "assets/sprites/ball_4_lime.png"
+    "sprite": "assets/characters/office-mochi.png"
   },
   {
     "level": 5,
     "radius": 50,
     "color": 15620719,
     "score": 200,
-    "sprite": "assets/sprites/ball_5_orange.png"
+    "sprite": "assets/characters/office-mochi.png"
   },
   {
     "level": 6,
     "radius": 56,
     "color": 12938992,
     "score": 400,
-    "sprite": "assets/sprites/ball_6_peach.png"
+    "sprite": "assets/characters/office-mochi.png"
   },
   {
     "level": 7,
     "radius": 62,
     "color": 16752627,
     "score": 800,
-    "sprite": "assets/sprites/ball_7_apple.png"
+    "sprite": "assets/characters/office-mochi.png"
   },
   {
     "level": 8,
     "radius": 68,
     "color": 16753922,
     "score": 1600,
-    "sprite": "assets/sprites/ball_8_coconut.png"
+    "sprite": "assets/characters/office-mochi.png"
   },
   {
     "level": 9,
     "radius": 74,
     "color": 3622650,
     "score": 3200,
-    "sprite": "assets/sprites/ball_9_watermelon.png"
+    "sprite": "assets/characters/office-mochi.png"
   },
   {
     "level": 10,
     "radius": 80,
     "color": 16766720,
     "score": 6400,
-    "sprite": "assets/sprites/ball_10_star.png"
+    "sprite": "assets/characters/office-mochi.png"
   }
 ]

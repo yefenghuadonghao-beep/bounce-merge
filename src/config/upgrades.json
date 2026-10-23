@@ -1,43 +1,43 @@
 [
   {
     "id": "extra_shot",
-    "name": "再来三球",
+    "name": "摸鱼续杯",
     "description": "之后每关多 3 次发射",
     "type": "stat",
     "value": 3
   },
   {
     "id": "starting_level_boost",
-    "name": "水果进阶",
-    "description": "之后每关的起始水果提升一级",
+    "name": "情绪进阶",
+    "description": "之后每关的起始团子提升一级",
     "type": "stat",
     "value": 1
   },
   {
     "id": "extra_shake",
-    "name": "摇一摇大师",
-    "description": "之后每关多 1 次聚拢机会",
+    "name": "抱团充电",
+    "description": "之后每关多 1 次抱团机会",
     "type": "passive",
     "value": 1
   },
   {
     "id": "swap_charge",
-    "name": "灵活换球",
-    "description": "之后每关多 2 次换球机会",
+    "name": "换个搭子",
+    "description": "之后每关多 2 次换搭子机会",
     "type": "passive",
     "value": 2
   },
   {
     "id": "score_boost",
-    "name": "高分达人",
+    "name": "快乐加薪",
     "description": "之后所有得分提升 30%",
     "type": "multiplier",
     "value": 1.3
   },
   {
     "id": "bigger_balls",
-    "name": "更好碰头",
-    "description": "水果增大 10%，更容易碰到同类",
+    "name": "贴贴加倍",
+    "description": "团子增大 10%，更容易碰到同类",
     "type": "multiplier",
     "value": 1.1
   }

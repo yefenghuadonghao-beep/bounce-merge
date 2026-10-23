@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { GameController } from '../core/GameController';
 import { GameConfig } from '../types';
 import { WebPlatform } from '../platform/WebPlatform';
-import { button, fruitNames, ink, panel } from '../ui/theme';
+import { button, characterNames, ink, panel, paper } from '../ui/theme';
 
 export class GameOverScene extends Phaser.Scene {
   private gameController!: GameController;
@@ -21,18 +21,19 @@ export class GameOverScene extends Phaser.Scene {
 
   create() {
     const state = this.gameController.getGameState();
-    this.add.rectangle(0, 0, 720, 1280, 0xf7e6ef).setOrigin(0);
-    this.add.text(360, 160, '再来一次，就差一点', { fontSize: '43px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
-    this.add.text(360, 225, `这次到达第 ${state.currentLevel} 关`, { fontSize: '27px', color: '#986b91' }).setOrigin(0.5);
+    paper(this);
+    this.add.text(360, 160, '今天也辛苦啦', { fontSize: '43px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(360, 225, `情绪释放到第 ${state.currentLevel} 关`, { fontSize: '27px', color: '#8b7c64' }).setOrigin(0.5);
     panel(this, 70, 305, 580, 400);
-    this.add.text(360, 355, '本次得分', { fontSize: '24px', color: '#986b91' }).setOrigin(0.5);
+    this.add.text(360, 355, '今日快乐值', { fontSize: '24px', color: '#8b7c64' }).setOrigin(0.5);
     this.add.text(360, 430, String(state.score), { fontSize: '74px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
-    const record = this.add.text(360, 510, '', { fontSize: '23px', color: '#986b91' }).setOrigin(0.5);
-    this.add.text(360, 585, `本关合出：${fruitNames[state.highestBallLevel]}`, { fontSize: '27px', color: ink }).setOrigin(0.5);
-    this.add.text(360, 760, '小技巧：看好下一球，连续追击同类水果\n球分散时，留一次「聚拢一下」救场', {
-      fontSize: '24px', color: '#986b91', align: 'center', lineSpacing: 14
+    const record = this.add.text(360, 510, '', { fontSize: '23px', color: '#8b7c64' }).setOrigin(0.5);
+    this.add.text(360, 585, `本关合出：${characterNames[state.highestBallLevel]}`, { fontSize: '27px', color: ink }).setOrigin(0.5);
+    this.add.text(360, 760, '小技巧：看好下一球，连续追击同款团子\n球分散时，留一次「抱团取暖」救场', {
+      fontSize: '24px', color: '#8b7c64', align: 'center', lineSpacing: 14
     }).setOrigin(0.5);
-    button(this, 360, 930, 440, '再玩一局', () => this.restart());
+    if (this.textures.exists('characters')) this.add.image(360, 1110, 'characters', `ball_${state.highestBallLevel}`).setDisplaySize(135, 135);
+    button(this, 360, 930, 440, '再摸一会儿鱼', () => this.restart());
     this.saveRecord(record);
   }
 

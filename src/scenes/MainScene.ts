@@ -3,7 +3,7 @@ import { GameController } from '../core/GameController';
 import { GameConfig } from '../types';
 import { ShotQueue } from '../core/ShotQueue';
 import { assetUrl } from '../platform/assets';
-import { button, fruitNames, ink, panel } from '../ui/theme';
+import { button, characterNames, ink, panel, paper } from '../ui/theme';
 import { WebPlatform } from '../platform/WebPlatform';
 
 interface Ball {
@@ -37,9 +37,9 @@ export class MainScene extends Phaser.Scene {
   private scorePopups: Phaser.GameObjects.Text[] = [];
   private comboText!: Phaser.GameObjects.Text;
   
-  // Rail margins for physics walls alignment
+  // 边界与收纳盒内沿对齐。
   private readonly RAIL_MARGIN = 50;
-  // Floor position at top of bottom candy bar (visual measurement from background.jpg)
+  // 底部操作区上方是碰撞地板。
   private readonly FLOOR_Y = 1110;
 
   constructor() {
@@ -71,43 +71,41 @@ export class MainScene extends Phaser.Scene {
   }
 
   preload() {
-    // Load background if specified
-    if (this.gameConfig.background) {
-      this.load.image('background', assetUrl(this.gameConfig.background));
+    // 图集按等距单元取帧，透明边距保留角色完整轮廓。
+    const frames: Record<string, { frame: { x: number; y: number; w: number; h: number } }> = {};
+    for (let i = 0; i < 10; i++) {
+      const column = i % 5;
+      const row = Math.floor(i / 5);
+      const x = Math.round(column * 1983 / 5);
+      const y = Math.round(row * 793 / 2);
+      frames[`ball_${i + 1}`] = { frame: { x, y, w: Math.round((column + 1) * 1983 / 5) - x, h: Math.round((row + 1) * 793 / 2) - y } };
     }
-
-    // Load ball sprites
-    for (let level = 1; level <= this.gameController.getMaxBallLevel(); level++) {
-      const ballConfig = this.gameController.getBallConfig(level);
-      if (ballConfig?.sprite) {
-        this.load.image(`ball_${level}`, assetUrl(ballConfig.sprite));
-      }
-    }
+    this.load.atlas('characters', assetUrl('assets/characters/office-mochi.png'), { frames });
   }
 
   create() {
     this.matter.world.setBounds(0, 0, this.gameConfig.width, this.gameConfig.height);
     this.matter.world.setGravity(0, this.gameConfig.physics.gravity);
 
-    // Add background image or solid color
-    if (this.gameConfig.background && this.textures.exists('background')) {
-      this.add.image(0, 0, 'background').setOrigin(0).setDisplaySize(this.gameConfig.width, this.gameConfig.height);
-    } else {
-      this.add.rectangle(0, 0, this.gameConfig.width, this.gameConfig.height, 0x0f1419).setOrigin(0);
-    }
-
+    paper(this);
+    panel(this, 45, 220, 630, 880, 0xfffcf2);
+    this.add.text(82, 246, '情绪收纳盒', { fontSize: '23px', color: ink, fontStyle: 'bold' });
+    this.add.text(360, 800, '今天的情绪，\n碰一碰就好了。', {
+      fontSize: '34px', color: '#d5cbb9', align: 'center', lineSpacing: 16
+    }).setOrigin(0.5);
+    this.add.text(360, 930, '同款团子相碰 → 解锁新搭子', { fontSize: '21px', color: '#c1b49e' }).setOrigin(0.5);
     this.createPegBoard();
     this.createUI();
     this.createAimingLine();
     const { startX, startY } = this.gameConfig.launcher;
-    this.add.circle(startX, startY, 42, 0xffffff, 0.65).setStrokeStyle(3, 0x9963b4);
-    this.launcherPreview = this.add.image(startX, startY, `ball_${this.shotQueue.peek()[0]}`).setDisplaySize(56, 56);
+    this.add.circle(startX, startY, 42, 0xffffff, 0.65).setStrokeStyle(3, 0x49392d);
+    this.launcherPreview = this.add.image(startX, startY, 'characters', `ball_${this.shotQueue.peek()[0]}`).setDisplaySize(56, 56);
     panel(this, 24, 1105, 672, 160);
     this.uiTexts.hint = this.add.text(360, 1220, '按住瞄准，松开发射 · 不用等球停下', {
       fontSize: '23px', color: ink
     }).setOrigin(0.5);
-    this.shakeLabel = button(this, 190, 1150, 280, '聚拢一下 ×1', () => this.shakeBoard()).label;
-    this.swapLabel = button(this, 530, 1150, 280, '换下一球 ×2', () => this.swapBall()).label;
+    this.shakeLabel = button(this, 190, 1150, 280, '抱团取暖 ×1', () => this.shakeBoard()).label;
+    this.swapLabel = button(this, 530, 1150, 280, '换个搭子 ×2', () => this.swapBall()).label;
     this.updateUI();
     const sound = this.add.text(650, 244, this.platform.isSoundEnabled() ? '音效 开' : '音效 关', {
       fontSize: '21px', color: ink, backgroundColor: '#fff8ef', padding: { x: 12, y: 10 }
@@ -167,9 +165,9 @@ export class MainScene extends Phaser.Scene {
     let sprite: Phaser.GameObjects.Arc | Phaser.GameObjects.Image;
     const spriteKey = `ball_${level}`;
     
-    if (ballConfig.sprite && this.textures.exists(spriteKey)) {
-      sprite = this.add.image(x, y, spriteKey);
-      // Sprites are now properly centered in 256x256 canvas, display size = physics diameter
+    if (ballConfig.sprite && this.textures.exists('characters')) {
+      sprite = this.add.image(x, y, 'characters', spriteKey);
+      // 图集单元按碰撞直径显示。
       sprite.setDisplaySize(radius * 2, radius * 2);
     } else {
       sprite = this.add.circle(x, y, radius, ballConfig.color);
@@ -196,14 +194,14 @@ export class MainScene extends Phaser.Scene {
     const pegs = this.gameConfig.board.pegPositions ?? [];
     for (let i = 0, length = pegs.length; i < length; i++) {
       const { x, y } = pegs[i];
-      const peg = this.add.circle(x, y, 14, 0xffd37c).setStrokeStyle(4, 0xffffff);
+      const peg = this.add.circle(x, y, 14, 0xe9be69).setStrokeStyle(3, 0x49392d);
       this.matter.add.gameObject(peg, { isStatic: true, shape: { type: 'circle', radius: 14 }, restitution: 0.65, label: 'peg' });
     }
-    // 可见斜坡与碰撞体一致，让散落的水果向中央聚集。
+    // 可见斜坡与碰撞体一致，让散落的团子向中央聚集。
     for (let side = 0; side < 2; side++) {
       const x = side === 0 ? 200 : 520;
       const angle = side === 0 ? 0.24 : -0.24;
-      this.add.rectangle(x, 1050, 310, 18, 0xe7a9c4).setRotation(angle).setStrokeStyle(3, 0xfff2cf);
+      this.add.rectangle(x, 1050, 310, 18, 0xb9c9a1).setRotation(angle).setStrokeStyle(3, 0x49392d);
       this.matter.add.rectangle(x, 1050, 310, 18, { isStatic: true, angle, restitution: 0.2, friction: 0.005, label: 'floor' });
     }
 
@@ -224,7 +222,7 @@ export class MainScene extends Phaser.Scene {
       restitution: 0.8
     });
     
-    // Bottom floor at top of candy bar (not bottom of screen)
+    // 地板阻止团子落进操作区。
     this.matter.add.rectangle(this.gameConfig.width / 2, this.FLOOR_Y, this.gameConfig.width, wallThickness * 2, {
       isStatic: true,
       restitution: 0.3,
@@ -237,30 +235,30 @@ export class MainScene extends Phaser.Scene {
     this.uiTexts.level = this.add.text(48, 38, '', { fontSize: '23px', color: ink, fontStyle: 'bold' });
     this.uiTexts.score = this.add.text(666, 38, '', { fontSize: '22px', color: ink }).setOrigin(1, 0);
     const target = this.gameController.getLevelConfig().targetBallLevel ?? 3;
-    this.add.image(79, 114, `ball_${target}`).setDisplaySize(64, 64);
-    this.uiTexts.goal = this.add.text(126, 86, `合出一颗${fruitNames[target]}`, { fontSize: '29px', color: ink, fontStyle: 'bold' });
-    this.uiTexts.progress = this.add.text(126, 130, '', { fontSize: '20px', color: '#95658b' });
+    this.add.image(79, 114, 'characters', `ball_${target}`).setDisplaySize(64, 64);
+    this.uiTexts.goal = this.add.text(126, 86, `合出${characterNames[target]}`, { fontSize: '27px', color: ink, fontStyle: 'bold' });
+    this.uiTexts.progress = this.add.text(126, 130, '', { fontSize: '20px', color: '#8b7c64' });
     this.uiTexts.shots = this.add.text(48, 168, '', { fontSize: '21px', color: ink });
-    this.add.text(606, 78, '下一球', { fontSize: '18px', color: '#95658b' }).setOrigin(0.5);
-    this.nextPreview = this.add.image(606, 129, `ball_${this.shotQueue.peek()[1]}`).setDisplaySize(50, 50);
+    this.add.text(606, 78, '下一位', { fontSize: '18px', color: '#8b7c64' }).setOrigin(0.5);
+    this.nextPreview = this.add.image(606, 129, 'characters', `ball_${this.shotQueue.peek()[1]}`).setDisplaySize(50, 50);
     this.comboText = this.add.text(360, 355, '', {
-      fontSize: '42px', color: '#fff7cd', fontStyle: 'bold', stroke: '#b45582', strokeThickness: 5
+      fontSize: '42px', color: '#fff7cd', fontStyle: 'bold', stroke: '#785d42', strokeThickness: 5
     }).setOrigin(0.5).setDepth(10).setVisible(false);
   }
 
   private updateUI() {
     const state = this.gameController.getGameState();
-    this.uiTexts.level.setText(`弹弹合  /  第 ${state.currentLevel} 关`);
-    this.uiTexts.score.setText(`得分 ${state.score}`);
+    this.uiTexts.level.setText(`下班团子  /  第 ${state.currentLevel} 关`);
+    this.uiTexts.score.setText(`快乐值 ${state.score}`);
     this.uiTexts.shots.setText(`还有 ${state.shotsRemaining} 球`);
-    this.uiTexts.progress.setText(`本关最高：${fruitNames[state.highestBallLevel]}`);
-    this.shakeLabel?.setText(`聚拢一下 ×${this.shakesRemaining}`);
-    this.swapLabel?.setText(`换下一球 ×${this.swapsRemaining}`);
+    this.uiTexts.progress.setText(`已遇见：${characterNames[state.highestBallLevel]}`);
+    this.shakeLabel?.setText(`抱团取暖 ×${this.shakesRemaining}`);
+    this.swapLabel?.setText(`换个搭子 ×${this.swapsRemaining}`);
     const queue = this.shotQueue.peek();
-    this.launcherPreview?.setTexture(`ball_${queue[0]}`).setDisplaySize(56, 56);
-    this.nextPreview.setTexture(`ball_${queue[1]}`).setDisplaySize(50, 50);
+    this.launcherPreview?.setTexture('characters', `ball_${queue[0]}`).setDisplaySize(56, 56);
+    this.nextPreview.setTexture('characters', `ball_${queue[1]}`).setDisplaySize(50, 50);
     if (state.combo > 1) {
-      this.comboText.setText(`漂亮！${state.combo} 连合`).setVisible(true);
+      this.comboText.setText(`情绪释放！${state.combo} 连合`).setVisible(true);
       this.tweens.killTweensOf(this.comboText);
       this.tweens.add({ targets: this.comboText, scale: { from: 1.25, to: 1 }, duration: 180 });
     }
@@ -269,7 +267,7 @@ export class MainScene extends Phaser.Scene {
   private swapBall() {
     if (this.resolving || this.swapsRemaining <= 0 || !this.canShoot) return;
     if (this.shotQueue.peek()[0] === this.shotQueue.peek()[1]) {
-      this.uiTexts.hint.setText('这两颗一样，留着机会给下一次吧');
+      this.uiTexts.hint.setText('这两位一样，留着机会给下一次吧');
       return;
     }
     this.shotQueue.swap();
@@ -295,7 +293,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createAimingLine() {
-    this.aimLine = this.add.line(0, 0, 0, 0, 0, 0, 0xffffff, 0.8);
+    this.aimLine = this.add.line(0, 0, 0, 0, 0, 0, 0x75614c, 0.8);
     this.aimLine.setOrigin(0);
     this.aimLine.setLineWidth(3);
     this.aimLine.setVisible(false);
@@ -378,7 +376,7 @@ export class MainScene extends Phaser.Scene {
     this.updateUI();
     this.canShoot = false;
     this.launcherPreview.setAlpha(0.35);
-    this.uiTexts.hint?.setText('找准同类水果，下一球马上就好');
+    this.uiTexts.hint?.setText('找准同款团子，下一位马上就好');
     this.shotStartedAt = this.time.now;
     this.settledSince = null;
   }
@@ -512,7 +510,7 @@ export class MainScene extends Phaser.Scene {
       this.isAiming = false;
       this.aimLine?.setVisible(false);
       this.aimArrow?.setVisible(false);
-      this.uiTexts.hint?.setText('目标达成！挑一个升级继续吧');
+      this.uiTexts.hint?.setText('情绪释放成功！领取一份小福利');
       this.time.delayedCall(700, () => {
         this.scene.start('UpgradeScene', { gameController: this.gameController, gameConfig: this.gameConfig });
       });

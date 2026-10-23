@@ -1,26 +1,35 @@
 import Phaser from 'phaser';
 
-export const fruitNames = ['', '蓝莓', '樱桃', '草莓', '青柠', '橙子', '桃子', '苹果', '椰子', '西瓜', '星星果'];
-export const ink = '#513960';
+export const characterNames = ['', '困困猫', '放空豚', '暴躁鼠', '续命蛙', '打卡汪', '发呆兔', '摸鱼熊', '躺平鹅', '溜了狐', '下班大王'];
+export const ink = '#49392d';
 
-export function panel(scene: Phaser.Scene, x: number, y: number, width: number, height: number, color = 0xfff8ef) {
+export function panel(scene: Phaser.Scene, x: number, y: number, width: number, height: number, color = 0xfffcf2) {
   const graphics = scene.add.graphics();
-  graphics.fillStyle(0x513960, 0.12).fillRoundedRect(x, y + 6, width, height, 24);
+  graphics.fillStyle(0x49392d, 0.16).fillRoundedRect(x, y + 6, width, height, 24);
   graphics.fillStyle(color, 0.96).fillRoundedRect(x, y, width, height, 24);
-  graphics.lineStyle(2, 0xffffff, 0.9).strokeRoundedRect(x, y, width, height, 24);
+  graphics.lineStyle(3, 0x49392d, 1).strokeRoundedRect(x, y, width, height, 24);
   return graphics;
 }
 
 export function button(scene: Phaser.Scene, x: number, y: number, width: number, title: string, action: () => void) {
   const container = scene.add.container(x, y);
   const bg = scene.add.graphics();
-  bg.fillStyle(0x5c387a).fillRoundedRect(-width / 2, -35, width, 76, 22);
-  bg.fillStyle(0x8a59b2).fillRoundedRect(-width / 2, -40, width, 76, 22);
-  const label = scene.add.text(0, -3, title, { fontSize: '25px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
+  bg.fillStyle(0x49392d).fillRoundedRect(-width / 2, -35, width, 76, 22);
+  bg.fillStyle(0xee976e).fillRoundedRect(-width / 2, -40, width, 76, 22);
+  const label = scene.add.text(0, -3, title, { fontSize: '25px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
   container.add([bg, label]).setSize(width, 80).setInteractive({ useHandCursor: true });
   container.on('pointerdown', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
     event.stopPropagation();
     action();
   });
   return { container, label };
+}
+
+// 用纸张网格和贴纸建立统一场景，保持游玩区域干净。
+export function paper(scene: Phaser.Scene) {
+  const g = scene.add.graphics();
+  g.fillStyle(0xf4efdf).fillRect(0, 0, 720, 1280);
+  g.lineStyle(1, 0xd9d1bc, 0.45);
+  for (let x = 0; x < 720; x += 40) g.lineBetween(x, 0, x, 1280);
+  for (let y = 0; y < 1280; y += 40) g.lineBetween(0, y, 720, y);
 }

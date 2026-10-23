@@ -1,7 +1,6 @@
 {
   "width": 720,
   "height": 1280,
-  "background": "assets/background.jpg",
   "physics": {
     "gravity": 1.2,
     "restitution": 0.42,
