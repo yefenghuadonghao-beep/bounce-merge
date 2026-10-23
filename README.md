@@ -351,7 +351,7 @@ const platform: IPlatform =
 
 - `art/balls_sheet.jpg` - 10个球体角色的原始精灵图（5x2网格，1280x720）
 - `art/background.jpg` - 糖果风格的游戏背景（720x1280）
-- `assets/sprites/ball_*.png` - 处理后的透明PNG精灵（128x128）
+- `assets/sprites/ball_*.png` - 处理后的透明PNG精灵（256x256）
 - `assets/background.jpg` - 优化后的背景图（83.1 KB）
 
 ### 重新生成精灵
@@ -359,15 +359,20 @@ const platform: IPlatform =
 当美术资源更新时，运行精灵切片脚本：
 
 ```bash
-node scripts/slice-sprites.js
+python3 scripts/slice_sprites.py
 ```
 
-脚本功能：
+脚本功能（使用scipy图像处理）：
 - 从精灵图中提取10个球体（按阅读顺序：5列×2行）
-- 移除白色背景，生成透明PNG
-- 自动裁剪和填充为正方形
-- 缩放到128x128，压缩优化（PNG Level 9）
-- 同时优化背景图为720x1280（JPEG质量85）
+- 边界连接的亮色背景移除（flood-fill from edges）
+- 连通分量分析，每个网格单元取最大组件
+- 星星特殊处理：包含周围的闪光效果
+- 填充空洞，裁剪到精确边界框
+- 在正方形画布上居中（2%填充）
+- 缩放到256x256高分辨率（LANCZOS插值）
+- 生成预览图 `art/sprites_preview.png`（不提交到git）
+
+**依赖**: `pip install numpy scipy pillow`
 
 ### 球体名称映射
 

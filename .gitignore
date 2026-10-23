@@ -6,6 +6,9 @@ dist/
 *.tsbuildinfo
 .vite/
 
+# Art pipeline outputs
+art/sprites_preview.png
+
 # Environment
 .env
 .env.local
