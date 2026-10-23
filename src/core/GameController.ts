@@ -1,0 +1,121 @@
+import { GameStateManager } from './GameStateManager';
+import { MergeSystem } from './MergeSystem';
+import { Upgrade, BallLevel, LevelConfig, GameConfig } from '../types';
+
+export interface MergeEvent {
+  level: number;
+  x: number;
+  y: number;
+  score: number;
+  combo: number;
+}
+
+export interface ScoreEvent {
+  score: number;
+  reason: 'merge' | 'wallBounce';
+}
+
+export class GameController {
+  private gameState: GameStateManager;
+  private mergeSystem: MergeSystem;
+  private gameConfig: GameConfig;
+  
+  constructor(
+    ballLevels: BallLevel[],
+    levelConfigs: LevelConfig[],
+    gameConfig: GameConfig
+  ) {
+    this.gameState = new GameStateManager(levelConfigs);
+    this.mergeSystem = new MergeSystem(ballLevels);
+    this.gameConfig = gameConfig;
+  }
+
+  getGameState() {
+    return this.gameState.getState();
+  }
+
+  getLevelConfig() {
+    return this.gameState.getLevelConfig();
+  }
+
+  getBallConfig(level: number) {
+    return this.mergeSystem.getBallConfig(level);
+  }
+
+  useShot() {
+    this.gameState.useShot();
+  }
+
+  canMerge(level1: number, level2: number): boolean {
+    return this.mergeSystem.canMerge(level1, level2);
+  }
+
+  processMerge(level: number, currentTime: number): { score: number; newLevel: number } {
+    this.gameState.incrementCombo(currentTime);
+    const state = this.gameState.getState();
+    
+    const score = this.mergeSystem.calculateMergeScore(
+      level + 1,
+      state.combo,
+      this.gameConfig.scoring.comboMultiplier,
+      state.mergeChainBonus
+    );
+    
+    this.gameState.addScore(score);
+    
+    return {
+      score,
+      newLevel: level + 1
+    };
+  }
+
+  processWallBounce(): number {
+    const state = this.gameState.getState();
+    if (state.wallBounceScore > 0) {
+      this.gameState.addScore(state.wallBounceScore);
+      return state.wallBounceScore;
+    }
+    return 0;
+  }
+
+  updateCombo(currentTime: number): boolean {
+    return this.gameState.checkComboExpired(
+      currentTime,
+      this.gameConfig.scoring.comboDecayTime
+    );
+  }
+
+  checkLevelComplete(): 'continue' | 'win' | 'lose' {
+    if (this.gameState.hasReachedTarget()) {
+      return 'win';
+    }
+    if (this.gameState.hasFailedLevel()) {
+      return 'lose';
+    }
+    return 'continue';
+  }
+
+  advanceLevel() {
+    this.gameState.advanceLevel();
+  }
+
+  applyUpgrade(upgrade: Upgrade) {
+    this.gameState.applyUpgrade(upgrade);
+  }
+
+  getMaxBallLevel(): number {
+    return this.mergeSystem.getMaxLevel();
+  }
+
+  reset() {
+    this.gameState.reset();
+  }
+
+  save(): string {
+    return this.gameState.serialize();
+  }
+
+  load(data: string) {
+    this.gameState.deserialize(data);
+  }
+}

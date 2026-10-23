@@ -1,0 +1,12 @@
+[
+  { "level": 1, "targetScore": 500, "shots": 15 },
+  { "level": 2, "targetScore": 1000, "shots": 15 },
+  { "level": 3, "targetScore": 2000, "shots": 15 },
+  { "level": 4, "targetScore": 3500, "shots": 15 },
+  { "level": 5, "targetScore": 5500, "shots": 15 },
+  { "level": 6, "targetScore": 8000, "shots": 15 },
+  { "level": 7, "targetScore": 12000, "shots": 15 },
+  { "level": 8, "targetScore": 18000, "shots": 15 },
+  { "level": 9, "targetScore": 25000, "shots": 15 },
+  { "level": 10, "targetScore": 35000, "shots": 15 }
+]

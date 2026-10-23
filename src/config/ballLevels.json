@@ -1,0 +1,12 @@
+[
+  { "level": 1, "radius": 12, "color": 16738923, "score": 10 },
+  { "level": 2, "radius": 14, "color": 16698967, "score": 25 },
+  { "level": 3, "radius": 16, "color": 4774907, "score": 50 },
+  { "level": 4, "radius": 18, "color": 1954209, "score": 100 },
+  { "level": 5, "radius": 20, "color": 15620719, "score": 200 },
+  { "level": 6, "radius": 22, "color": 12938992, "score": 400 },
+  { "level": 7, "radius": 24, "color": 16752627, "score": 800 },
+  { "level": 8, "radius": 26, "color": 16753922, "score": 1600 },
+  { "level": 9, "radius": 28, "color": 3622650, "score": 3200 },
+  { "level": 10, "radius": 30, "color": 16766720, "score": 6400 }
+]

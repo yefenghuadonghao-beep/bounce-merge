@@ -1,0 +1,44 @@
+[
+  {
+    "id": "extra_shot",
+    "name": "额外发射",
+    "description": "获得+1次发射机会",
+    "type": "stat",
+    "value": 1
+  },
+  {
+    "id": "score_boost",
+    "name": "分数加成",
+    "description": "合成得分+20%",
+    "type": "multiplier",
+    "value": 1.2
+  },
+  {
+    "id": "wall_bounce_score",
+    "name": "弹壁得分",
+    "description": "每次碰墙获得10分",
+    "type": "passive",
+    "value": 10
+  },
+  {
+    "id": "merge_chain_bonus",
+    "name": "连锁加成",
+    "description": "连锁合成额外+50分",
+    "type": "passive",
+    "value": 50
+  },
+  {
+    "id": "starting_level_boost",
+    "name": "起始等级+1",
+    "description": "发射球的等级+1",
+    "type": "stat",
+    "value": 1
+  },
+  {
+    "id": "bigger_balls",
+    "name": "球体增大",
+    "description": "所有球的大小+10%（更易合成）",
+    "type": "multiplier",
+    "value": 1.1
+  }
+]
