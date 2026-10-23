@@ -43,6 +43,6 @@ describe('retry and personal record', () => {
     scene['restart']();
     scene['restart']();
     expect(scene.scene.start).toHaveBeenCalledTimes(1);
-    expect(controller.getGameState()).toMatchObject({ score: 0, currentLevel: 1, shotsRemaining: 18 });
+    expect(controller.getGameState()).toMatchObject({ score: 0, currentLevel: 1, shotsRemaining: levels[0].shots });
   });
 });

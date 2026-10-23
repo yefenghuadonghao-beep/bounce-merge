@@ -38,6 +38,8 @@ export class UpgradeScene extends Phaser.Scene {
   private selectRandomUpgrades(count: number): Upgrade[] {
     const state = this.gameController.getGameState();
     const available = upgrades.filter(upgrade => {
+      // 手工关卡依赖固定球径和发射等级，只提供不改变谜题结构的福利。
+      if (this.gameController.getLevelConfig().shotSequence && ['bigger_balls', 'starting_level_boost'].includes(upgrade.id)) return false;
       if (upgrade.id === 'bigger_balls') return state.ballSizeMultiplier < 1.6;
       return upgrade.id !== 'starting_level_boost' || state.startingBallLevel < 3;
     });

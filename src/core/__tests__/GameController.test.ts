@@ -205,3 +205,24 @@ describe('run highlights', () => {
     expect(controller.getRunSummary()).toEqual({ merges: 0, bestCombo: 0, highest: 1 });
   });
 });
+
+
+describe('level retry checkpoint', () => {
+  it('restores entry score, upgrades and shots without farming merge highlights', () => {
+    const controller = new GameController(mockBallLevels, mockLevelConfigs, mockGameConfig);
+    controller.processMerge(1, 100);
+    controller.applyUpgrade({ id: 'extra_shot', name: '', description: '', type: 'stat', value: 3 });
+    controller.advanceLevel();
+    const before = controller.getGameState();
+    const summary = controller.getRunSummary();
+    controller.processMerge(2, 200);
+    controller.useShot();
+    controller.retryLevel();
+    expect(controller.getGameState()).toEqual(before);
+    expect(controller.getRunSummary()).toEqual(summary);
+    controller.reset();
+    controller.retryLevel();
+    expect(controller.getGameState().currentLevel).toBe(1);
+    expect(controller.getGameState().upgrades).toHaveLength(0);
+  });
+});

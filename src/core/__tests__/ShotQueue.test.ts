@@ -24,15 +24,27 @@ describe('fruit challenge rules', () => {
     expect(queue.peek()).toEqual([before[1], before[0], before[2]]);
   });
 
-  it('wins the first level by making a strawberry rather than reaching 500 points', () => {
+  it('completes the tutorial with the first merge and resets progress next stage', () => {
     const controller = new GameController(balls, levels, config);
     controller.processMerge(1, 1000);
-    expect(controller.checkLevelComplete()).toBe('continue');
-    controller.processMerge(2, 1500);
+    expect(controller.checkLevelComplete()).toBe('win');
     expect(controller.getGameState().score).toBeLessThan(500);
     expect(controller.checkLevelComplete()).toBe('win');
     controller.advanceLevel();
     expect(controller.checkLevelComplete()).toBe('continue');
     expect(controller.getGameState().highestBallLevel).toBe(1);
+  });
+});
+
+
+describe('authored shot sequences', () => {
+  it('follows exact order and cycles only when extra shots need refilling', () => {
+    const queue = new ShotQueue(1, 9, () => { throw new Error('No random draw allowed'); }, [2, 1, 3, 2]);
+    expect(Array.from({ length: 7 }, () => queue.take())).toEqual([2, 1, 3, 2, 2, 1, 3]);
+  });
+  it('swaps only the first two authored entries', () => {
+    const queue = new ShotQueue(1, 9, Math.random, [2, 1, 3, 2]);
+    queue.swap();
+    expect(Array.from({ length: 4 }, () => queue.take())).toEqual([1, 2, 3, 2]);
   });
 });

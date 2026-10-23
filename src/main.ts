@@ -46,6 +46,10 @@ Object.assign(window, { game, gameController, gameConfig });
 // Check for debug parameters
 const urlParams = new URLSearchParams(window.location.search);
 const debugScene = urlParams.get('scene');
+const requestedStage = Number(urlParams.get('stage'));
+if (import.meta.env.DEV && Number.isInteger(requestedStage) && requestedStage >= 1 && requestedStage <= 8) {
+  for (let i = 1; i < requestedStage; i++) gameController.advanceLevel();
+}
 
 if (debugScene === 'upgrade') {
   game.scene.start('UpgradeScene', { gameController, gameConfig });

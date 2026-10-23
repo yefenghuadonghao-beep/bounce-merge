@@ -6,7 +6,24 @@ export interface BallLevel {
   sprite?: string;
 }
 
+export interface BoardObstacle {
+  x: number;
+  y: number;
+  radius?: number;
+  width?: number;
+  height?: number;
+  angle?: number;
+}
+
 export interface LevelConfig {
+  title?: string;
+  hint?: string;
+  obstacles?: BoardObstacle[];
+  presetBalls?: { x: number; y: number; level: number }[];
+  shotSequence?: number[];
+  shakes?: number;
+  swaps?: number;
+  chapterEnd?: boolean;
   level: number;
   targetScore: number;
   targetBallLevel?: number;

@@ -100,6 +100,7 @@ describe('scene turn lifecycle', () => {
   });
 
   it('does not spend a swap on identical fruit and preserves shot count', () => {
+    scene['swapsRemaining'] = 2;
     scene['canShoot'] = true;
     scene['uiTexts'].hint = { setText: vi.fn() } as unknown as Phaser.GameObjects.Text;
     scene['updateUI'] = vi.fn();
@@ -118,6 +119,7 @@ describe('scene turn lifecycle', () => {
   });
 
   it('allows one rescue shake after the last shot and wakes sleeping fruit', () => {
+    scene['shakesRemaining'] = 1;
     while (controller.getGameState().shotsRemaining > 0) controller.useShot();
     const setAwake = vi.fn();
     const setVelocity = vi.fn();
@@ -152,7 +154,7 @@ describe('scene turn lifecycle', () => {
       Object.assign(scene.time, { now: 100 + i * 100 });
       scene['mergeBalls'](ball, { ...ball });
     }
-    expect(scene['shakesRemaining']).toBe(2);
+    expect(scene['shakesRemaining']).toBe(levelConfigs[0].shakes + 1);
     expect(scene['charge'].rewards).toBe(1);
     expect(controller.getGameState().shotsRemaining).toBe(shots);
     controller.advanceLevel();
@@ -173,5 +175,31 @@ describe('scene turn lifecycle', () => {
     expect(controller.getGameState().currentLevel).toBe(2);
     expect(controller.getGameState().shotsRemaining).toBe(levelConfigs[1].shots + 1);
     expect(controller.getGameState().upgrades).toHaveLength(1);
+  });
+});
+
+
+describe('chapter completion and safe upgrades', () => {
+  it('ends chapter eight instead of advancing to a repeated ninth board', () => {
+    const controller = new GameController(ballLevels, levelConfigs, config);
+    for (let i = 1; i < 8; i++) controller.advanceLevel();
+    controller.processMerge(5, 1000);
+    const scene = new MainScene();
+    scene.init({ gameController: controller, gameConfig: config });
+    scene['comboText'] = { visible: false } as Phaser.GameObjects.Text;
+    scene['showVictory'] = vi.fn();
+    scene.scene = { start: vi.fn() } as unknown as Phaser.Scenes.ScenePlugin;
+    scene.time = { delayedCall: vi.fn((_delay: number, callback: () => void) => callback()) } as unknown as Phaser.Time.Clock;
+    scene.update(1200);
+    expect(scene.scene.start).toHaveBeenCalledWith('GameOverScene', expect.objectContaining({ won: true }));
+  });
+  it('does not offer changes to authored ball sizes or levels', () => {
+    const controller = new GameController(ballLevels, levelConfigs, config);
+    const scene = new UpgradeScene();
+    scene.init({ gameController: controller, gameConfig: config });
+    const offered = scene['selectRandomUpgrades'](10).map(upgrade => upgrade.id);
+    expect(offered).not.toContain('bigger_balls');
+    expect(offered).not.toContain('starting_level_boost');
+    expect(offered.length).toBe(4);
   });
 });

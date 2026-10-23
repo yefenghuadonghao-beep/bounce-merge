@@ -17,6 +17,8 @@ export interface ScoreEvent {
 
 export class GameController {
   private summary = { merges: 0, bestCombo: 0, highest: 1 };
+  private checkpoint = '';
+  private checkpointSummary = { merges: 0, bestCombo: 0, highest: 1 };
   private gameState: GameStateManager;
   private mergeSystem: MergeSystem;
   private gameConfig: GameConfig;
@@ -29,6 +31,7 @@ export class GameController {
     this.gameState = new GameStateManager(levelConfigs);
     this.mergeSystem = new MergeSystem(ballLevels);
     this.gameConfig = gameConfig;
+    this.checkpoint = this.gameState.serialize();
   }
 
   getGameState() {
@@ -102,6 +105,8 @@ export class GameController {
 
   advanceLevel() {
     this.gameState.advanceLevel();
+    this.checkpoint = this.gameState.serialize();
+    this.checkpointSummary = { ...this.summary };
   }
 
   applyUpgrade(upgrade: Upgrade) {
@@ -112,6 +117,11 @@ export class GameController {
     return this.mergeSystem.getMaxLevel();
   }
 
+  retryLevel() {
+    this.gameState.deserialize(this.checkpoint);
+    this.summary = { ...this.checkpointSummary };
+  }
+
   getRunSummary() {
     return { ...this.summary };
   }
@@ -119,6 +129,8 @@ export class GameController {
   reset() {
     this.summary = { merges: 0, bestCombo: 0, highest: 1 };
     this.gameState.reset();
+    this.checkpoint = this.gameState.serialize();
+    this.checkpointSummary = { ...this.summary };
   }
 
   save(): string {
@@ -127,5 +139,7 @@ export class GameController {
 
   load(data: string) {
     this.gameState.deserialize(data);
+    this.checkpoint = this.gameState.serialize();
+    this.checkpointSummary = { ...this.summary };
   }
 }

@@ -1,62 +1,356 @@
 [
   {
     "level": 1,
-    "targetScore": 500,
-    "shots": 18,
-    "targetBallLevel": 3
+    "title": "刚到工位",
+    "hint": "瞄准底下的困困猫，松手就能合成",
+    "targetScore": 0,
+    "targetBallLevel": 2,
+    "shots": 3,
+    "shotSequence": [
+      1,
+      1,
+      1
+    ],
+    "obstacles": [
+      {
+        "x": 200,
+        "y": 1050,
+        "width": 310,
+        "height": 18,
+        "angle": 0.24
+      },
+      {
+        "x": 520,
+        "y": 1050,
+        "width": 310,
+        "height": 18,
+        "angle": -0.24
+      }
+    ],
+    "presetBalls": [
+      {
+        "x": 360,
+        "y": 1030,
+        "level": 1
+      }
+    ],
+    "shakes": 0,
+    "swaps": 0,
+    "chapterEnd": false
   },
   {
     "level": 2,
-    "targetScore": 1000,
-    "shots": 22,
-    "targetBallLevel": 4
+    "title": "找个搭子",
+    "hint": "先找同款，再看下一位",
+    "targetScore": 0,
+    "targetBallLevel": 3,
+    "shots": 6,
+    "shotSequence": [
+      1,
+      1,
+      1,
+      2,
+      1,
+      2
+    ],
+    "obstacles": [],
+    "presetBalls": [
+      {
+        "x": 240,
+        "y": 1040,
+        "level": 1
+      },
+      {
+        "x": 480,
+        "y": 1040,
+        "level": 2
+      }
+    ],
+    "shakes": 1,
+    "swaps": 1,
+    "chapterEnd": false
   },
   {
     "level": 3,
-    "targetScore": 1500,
-    "shots": 22,
-    "targetBallLevel": 5
+    "title": "周一分工",
+    "hint": "绕过中间圆钉，选左边还是右边？",
+    "targetScore": 0,
+    "targetBallLevel": 3,
+    "shots": 6,
+    "shotSequence": [
+      1,
+      2,
+      1,
+      2,
+      1,
+      2
+    ],
+    "obstacles": [
+      {
+        "x": 360,
+        "y": 570,
+        "radius": 55
+      }
+    ],
+    "presetBalls": [
+      {
+        "x": 190,
+        "y": 1040,
+        "level": 1
+      },
+      {
+        "x": 530,
+        "y": 1040,
+        "level": 2
+      }
+    ],
+    "shakes": 1,
+    "swaps": 2,
+    "chapterEnd": false
   },
   {
     "level": 4,
-    "targetScore": 2000,
-    "shots": 22,
-    "targetBallLevel": 6
+    "title": "咖啡续命",
+    "hint": "找准困困猫，试试一发连锁",
+    "targetScore": 0,
+    "targetBallLevel": 4,
+    "shots": 6,
+    "shotSequence": [
+      1,
+      1,
+      2,
+      2,
+      1,
+      1
+    ],
+    "obstacles": [
+      {
+        "x": 200,
+        "y": 1050,
+        "width": 310,
+        "height": 18,
+        "angle": 0.24
+      },
+      {
+        "x": 520,
+        "y": 1050,
+        "width": 310,
+        "height": 18,
+        "angle": -0.24
+      }
+    ],
+    "presetBalls": [
+      {
+        "x": 280,
+        "y": 970,
+        "level": 1
+      },
+      {
+        "x": 360,
+        "y": 1020,
+        "level": 2
+      },
+      {
+        "x": 440,
+        "y": 970,
+        "level": 3
+      }
+    ],
+    "shakes": 1,
+    "swaps": 1,
+    "chapterEnd": false
   },
   {
     "level": 5,
-    "targetScore": 2500,
-    "shots": 22,
-    "targetBallLevel": 7
+    "title": "绕过会议",
+    "hint": "中间有挡板，从两侧绕进去",
+    "targetScore": 0,
+    "targetBallLevel": 4,
+    "shots": 8,
+    "shotSequence": [
+      2,
+      2,
+      1,
+      1,
+      2,
+      2,
+      3,
+      2
+    ],
+    "obstacles": [
+      {
+        "x": 360,
+        "y": 620,
+        "width": 250,
+        "height": 18,
+        "angle": 0
+      },
+      {
+        "x": 200,
+        "y": 1050,
+        "width": 310,
+        "height": 18,
+        "angle": 0.24
+      },
+      {
+        "x": 520,
+        "y": 1050,
+        "width": 310,
+        "height": 18,
+        "angle": -0.24
+      }
+    ],
+    "presetBalls": [
+      {
+        "x": 360,
+        "y": 1020,
+        "level": 3
+      }
+    ],
+    "shakes": 1,
+    "swaps": 2,
+    "chapterEnd": false
   },
   {
     "level": 6,
-    "targetScore": 3000,
-    "shots": 22,
-    "targetBallLevel": 8
+    "title": "工位太远",
+    "hint": "两边都是暴躁鼠，抱团能帮它们碰头",
+    "targetScore": 0,
+    "targetBallLevel": 5,
+    "shots": 6,
+    "shotSequence": [
+      2,
+      3,
+      2,
+      3,
+      1,
+      1
+    ],
+    "obstacles": [],
+    "presetBalls": [
+      {
+        "x": 160,
+        "y": 1030,
+        "level": 3
+      },
+      {
+        "x": 360,
+        "y": 1030,
+        "level": 4
+      },
+      {
+        "x": 560,
+        "y": 1030,
+        "level": 3
+      }
+    ],
+    "shakes": 1,
+    "swaps": 1,
+    "chapterEnd": false
   },
   {
     "level": 7,
-    "targetScore": 3500,
-    "shots": 22,
-    "targetBallLevel": 9
+    "title": "下班倒计时",
+    "hint": "基础只有 5 发，换搭子也不消耗发射",
+    "targetScore": 0,
+    "targetBallLevel": 5,
+    "shots": 5,
+    "shotSequence": [
+      2,
+      2,
+      3,
+      3,
+      2
+    ],
+    "obstacles": [
+      {
+        "x": 360,
+        "y": 550,
+        "radius": 48
+      }
+    ],
+    "presetBalls": [
+      {
+        "x": 210,
+        "y": 1030,
+        "level": 3
+      },
+      {
+        "x": 510,
+        "y": 1030,
+        "level": 4
+      }
+    ],
+    "shakes": 1,
+    "swaps": 2,
+    "chapterEnd": false
   },
   {
     "level": 8,
-    "targetScore": 4000,
-    "shots": 22,
-    "targetBallLevel": 10
-  },
-  {
-    "level": 9,
-    "targetScore": 4500,
-    "shots": 22,
-    "targetBallLevel": 10
-  },
-  {
-    "level": 10,
-    "targetScore": 5000,
-    "shots": 22,
-    "targetBallLevel": 10
+    "title": "全员下班",
+    "hint": "绕过分流钉和挡板，合出发呆兔",
+    "targetScore": 0,
+    "targetBallLevel": 6,
+    "shots": 10,
+    "shotSequence": [
+      3,
+      3,
+      2,
+      2,
+      4,
+      3,
+      3,
+      2,
+      2,
+      3
+    ],
+    "obstacles": [
+      {
+        "x": 360,
+        "y": 480,
+        "radius": 38
+      },
+      {
+        "x": 360,
+        "y": 700,
+        "width": 220,
+        "height": 18,
+        "angle": 0
+      },
+      {
+        "x": 200,
+        "y": 1050,
+        "width": 310,
+        "height": 18,
+        "angle": 0.24
+      },
+      {
+        "x": 520,
+        "y": 1050,
+        "width": 310,
+        "height": 18,
+        "angle": -0.24
+      }
+    ],
+    "presetBalls": [
+      {
+        "x": 190,
+        "y": 970,
+        "level": 3
+      },
+      {
+        "x": 360,
+        "y": 1020,
+        "level": 4
+      },
+      {
+        "x": 530,
+        "y": 970,
+        "level": 2
+      }
+    ],
+    "shakes": 2,
+    "swaps": 2,
+    "chapterEnd": true
   }
 ]

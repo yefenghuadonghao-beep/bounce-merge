@@ -64,11 +64,12 @@ export class MainScene extends Phaser.Scene {
     this.pendingMerges = [];
     this.scorePopups = [];
     const state = this.gameController.getGameState();
-    const target = this.gameController.getLevelConfig().targetBallLevel ?? 3;
+    const stage = this.gameController.getLevelConfig();
+    const target = stage.targetBallLevel ?? 3;
     const base = Math.min(target - 1, Math.max(1, target - 4) + state.startingBallLevel - 1);
-    this.shotQueue = new ShotQueue(base, Math.min(target - 1, this.gameController.getMaxBallLevel()));
-    this.shakesRemaining = 1;
-    this.swapsRemaining = 2;
+    this.shotQueue = new ShotQueue(base, Math.min(target - 1, this.gameController.getMaxBallLevel()), Math.random, stage.shotSequence);
+    this.shakesRemaining = stage.shakes ?? 1;
+    this.swapsRemaining = stage.swaps ?? 2;
     const upgrades = state.upgrades;
     for (let i = 0, length = upgrades.length; i < length; i++) {
       if (upgrades[i].id === 'extra_shake') this.shakesRemaining += upgrades[i].value;
@@ -95,11 +96,11 @@ export class MainScene extends Phaser.Scene {
 
     paper(this);
     panel(this, 45, 220, 630, 880, 0xfffcf2);
-    this.add.text(82, 246, '情绪收纳盒', { fontSize: '23px', color: ink, fontStyle: 'bold' });
-    this.add.text(360, 800, '今天的坏情绪，\n一碰就下班。', {
+    this.add.text(82, 246, '第一章 · 打工日常', { fontSize: '23px', color: ink, fontStyle: 'bold' });
+    this.add.text(360, 800, this.gameController.getLevelConfig().title ?? '碰一碰就下班', {
       fontSize: '34px', color: '#d5cbb9', align: 'center', lineSpacing: 16
     }).setOrigin(0.5);
-    this.add.text(360, 930, '同款团子相碰 → 解锁新搭子', { fontSize: '21px', color: '#c1b49e' }).setOrigin(0.5);
+    this.add.text(360, 930, '同款相碰升级 · 用完发射前达成目标', { fontSize: '21px', color: '#c1b49e' }).setOrigin(0.5);
     this.createPegBoard();
     this.createUI();
     this.createAimingLine();
@@ -117,7 +118,22 @@ export class MainScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.shakeLabel = button(this, 190, 1150, 280, '抱团取暖 ×1', () => this.shakeBoard()).label;
     this.swapLabel = button(this, 530, 1150, 280, '换个搭子 ×2', () => this.swapBall()).label;
+    const stage = this.gameController.getLevelConfig();
+    const presets = stage.presetBalls ?? [];
+    for (let i = 0; i < presets.length; i++) {
+      const seed = presets[i];
+      this.spawnBall(seed.x, seed.y, seed.level);
+    }
+    this.uiTexts.hint.setText(stage.hint ?? '按住瞄准，松开发射');
     this.updateUI();
+    const retry = this.add.text(82, 287, '重试本关', { fontSize: '20px', color: ink, backgroundColor: '#eee6d5', padding: { x: 8, y: 6 } }).setInteractive({ useHandCursor: true });
+    retry.on('pointerdown', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      if (this.resolving) return;
+      this.resolving = true;
+      this.gameController.retryLevel();
+      this.scene.restart({ gameController: this.gameController, gameConfig: this.gameConfig });
+    });
     const sound = this.add.text(650, 244, this.platform.isSoundEnabled() ? '音效 开' : '音效 关', {
       fontSize: '21px', color: ink, backgroundColor: '#fff8ef', padding: { x: 12, y: 10 }
     }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
@@ -201,23 +217,21 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createPegBoard() {
-    // 给中路留出可瞄准的通道，两侧保留弹射变化。
-    const layouts = [this.gameConfig.board.pegPositions ?? [],
-      [{ x: 150, y: 460 }, { x: 570, y: 460 }, { x: 270, y: 650 }, { x: 450, y: 650 }],
-      [{ x: 220, y: 470 }, { x: 500, y: 470 }, { x: 130, y: 670 }, { x: 590, y: 670 }]];
-    const pegs = layouts[(this.gameController.getGameState().currentLevel - 1) % layouts.length];
-    for (let i = 0, length = pegs.length; i < length; i++) {
-      const { x, y } = pegs[i];
-      const peg = this.add.circle(x, y, 14, 0xe9be69).setStrokeStyle(3, 0x49392d);
-      this.matter.add.gameObject(peg, { isStatic: true, shape: { type: 'circle', radius: 14 }, restitution: 0.65, label: 'peg' });
+    const obstacles = this.gameController.getLevelConfig().obstacles ?? [];
+    for (let i = 0; i < obstacles.length; i++) {
+      const obstacle = obstacles[i];
+      if (obstacle.radius) {
+        const peg = this.add.circle(obstacle.x, obstacle.y, obstacle.radius, 0xe9be69).setStrokeStyle(3, 0x49392d);
+        this.matter.add.gameObject(peg, { isStatic: true, shape: { type: 'circle', radius: obstacle.radius }, restitution: 0.65, label: 'peg' });
+      } else {
+        const width = obstacle.width ?? 100;
+        const height = obstacle.height ?? 18;
+        const angle = obstacle.angle ?? 0;
+        this.add.rectangle(obstacle.x, obstacle.y, width, height, 0xb9c9a1).setRotation(angle).setStrokeStyle(3, 0x49392d);
+        this.matter.add.rectangle(obstacle.x, obstacle.y, width, height, { isStatic: true, angle, restitution: 0.2, friction: 0.005, label: 'floor' });
+      }
     }
-    // 可见斜坡与碰撞体一致，让散落的团子向中央聚集。
-    for (let side = 0; side < 2; side++) {
-      const x = side === 0 ? 200 : 520;
-      const angle = side === 0 ? 0.24 : -0.24;
-      this.add.rectangle(x, 1050, 310, 18, 0xb9c9a1).setRotation(angle).setStrokeStyle(3, 0x49392d);
-      this.matter.add.rectangle(x, 1050, 310, 18, { isStatic: true, angle, restitution: 0.2, friction: 0.005, label: 'floor' });
-    }
+    this.add.rectangle(360, 1105, 620, 10, 0xb9c9a1).setStrokeStyle(2, 0x49392d);
 
     // Physics walls aligned with visual rails
     const wallThickness = 10;
@@ -262,12 +276,14 @@ export class MainScene extends Phaser.Scene {
 
   private updateUI() {
     const state = this.gameController.getGameState();
-    this.uiTexts.level.setText(`下班团子  /  第 ${state.currentLevel} 关`);
+    this.uiTexts.level.setText(`${state.currentLevel}/8 · ${this.gameController.getLevelConfig().title ?? "下班团子"}`);
     this.uiTexts.score.setText(`快乐值 ${state.score}`);
     this.uiTexts.shots.setText(`还有 ${state.shotsRemaining} 球`);
-    this.uiTexts.progress.setText(`已遇见：${characterNames[state.highestBallLevel]}`);
+    this.uiTexts.progress.setText(state.highestBallLevel === 1 ? '同款相碰 → 升一级' : `本关合成：${characterNames[state.highestBallLevel]}`);
     this.shakeLabel?.setText(`抱团取暖 ×${this.shakesRemaining}`);
     this.swapLabel?.setText(`换个搭子 ×${this.swapsRemaining}`);
+    this.shakeLabel?.parentContainer?.setAlpha(this.shakesRemaining > 0 ? 1 : 0.45);
+    this.swapLabel?.parentContainer?.setAlpha(this.swapsRemaining > 0 ? 1 : 0.45);
     if (this.uiTexts.charge) {
       const full = this.charge.rewards >= this.charge.limit;
       this.uiTexts.charge.setText(full ? '本关充能奖励已领满' : `抱团充能 ${this.charge.charge}/4 · 3 连合后双倍充能`);
@@ -581,7 +597,8 @@ export class MainScene extends Phaser.Scene {
       this.uiTexts.hint?.setText('情绪释放成功！领取一份小福利');
       this.showVictory();
       this.time.delayedCall(1700, () => {
-        this.scene.start('UpgradeScene', { gameController: this.gameController, gameConfig: this.gameConfig });
+        const destination = this.gameController.getLevelConfig().chapterEnd ? 'GameOverScene' : 'UpgradeScene';
+        this.scene.start(destination, { gameController: this.gameController, gameConfig: this.gameConfig, won: true });
       });
       return;
     }
@@ -591,7 +608,7 @@ export class MainScene extends Phaser.Scene {
       if (!this.canShoot && time - this.shotStartedAt >= 450) {
         this.canShoot = true;
         this.launcherPreview?.setAlpha(1);
-        this.uiTexts.hint?.setText('按住瞄准，松开发射 · 可以连续追击');
+        this.uiTexts.hint?.setText(this.gameController.getLevelConfig().hint ?? '按住瞄准，松开发射 · 可以连续追击');
       }
       return;
     }

@@ -8,22 +8,24 @@ export class GameOverScene extends Phaser.Scene {
   private gameController!: GameController;
   private gameConfig!: GameConfig;
   private restarting = false;
+  private won = false;
 
   constructor() {
     super({ key: 'GameOverScene' });
   }
 
-  init(data: { gameController: GameController; gameConfig: GameConfig }) {
+  init(data: { gameController: GameController; gameConfig: GameConfig; won?: boolean }) {
     this.gameController = data.gameController;
     this.gameConfig = data.gameConfig;
     this.restarting = false;
+    this.won = data.won ?? false;
   }
 
   create() {
     const state = this.gameController.getGameState();
     const summary = this.gameController.getRunSummary();
     paper(this);
-    this.add.text(360, 160, '今天也辛苦啦', { fontSize: '43px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(360, 160, this.won ? '第一章，全员下班！' : '今天也辛苦啦', { fontSize: '43px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(360, 225, `情绪释放到第 ${state.currentLevel} 关`, { fontSize: '27px', color: '#8b7c64' }).setOrigin(0.5);
     panel(this, 70, 305, 580, 400);
     this.add.text(360, 355, '今日快乐值', { fontSize: '24px', color: '#8b7c64' }).setOrigin(0.5);
@@ -34,7 +36,13 @@ export class GameOverScene extends Phaser.Scene {
       fontSize: '24px', color: '#8b7c64', align: 'center', lineSpacing: 14
     }).setOrigin(0.5);
     if (this.textures.exists('characters')) this.add.image(360, 1110, 'characters', `ball_${summary.highest}`).setDisplaySize(135, 135);
-    button(this, 360, 930, 440, '再摸一会儿鱼', () => this.restart());
+    button(this, 360, 930, 440, this.won ? '再挑战第一章' : '重试本关', () => {
+      if (this.won) { this.restart(); return; }
+      if (this.restarting) return;
+      this.restarting = true;
+      this.gameController.retryLevel();
+      this.scene.start('MainScene', { gameController: this.gameController, gameConfig: this.gameConfig });
+    });
     this.saveRecord(record);
   }
 
