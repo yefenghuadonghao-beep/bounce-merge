@@ -26,6 +26,9 @@ export class MainScene extends Phaser.Scene {
   private readonly RAIL_MARGIN = 50;
   // Floor position at top of bottom candy bar (visual measurement from background.jpg)
   private readonly FLOOR_Y = 1110;
+  // Sprite scale factor to account for transparent padding in PNGs
+  // Sprites have ~50% visible content, so scale up 2x to match physics body
+  private readonly SPRITE_SCALE = 2.0;
 
   constructor() {
     super({ key: 'MainScene' });
@@ -122,7 +125,8 @@ export class MainScene extends Phaser.Scene {
     
     if (ballConfig.sprite && this.textures.exists(spriteKey)) {
       sprite = this.add.image(x, y, spriteKey);
-      sprite.setDisplaySize(radius * 2, radius * 2);
+      // Scale sprite to account for transparent padding - visible fruit should match physics body
+      sprite.setDisplaySize(radius * 2 * this.SPRITE_SCALE, radius * 2 * this.SPRITE_SCALE);
     } else {
       sprite = this.add.circle(x, y, radius, ballConfig.color);
     }
@@ -334,7 +338,8 @@ export class MainScene extends Phaser.Scene {
     
     if (ballConfig.sprite && this.textures.exists(spriteKey)) {
       sprite = this.add.image(x, y, spriteKey);
-      sprite.setDisplaySize(radius * 2, radius * 2);
+      // Scale sprite to account for transparent padding - visible fruit should match physics body
+      sprite.setDisplaySize(radius * 2 * this.SPRITE_SCALE, radius * 2 * this.SPRITE_SCALE);
     } else {
       sprite = this.add.circle(x, y, radius, ballConfig.color);
     }
@@ -419,7 +424,8 @@ export class MainScene extends Phaser.Scene {
       
       if (newConfig.sprite && this.textures.exists(spriteKey)) {
         sprite = this.add.image(midX, midY, spriteKey);
-        sprite.setDisplaySize(radius * 2, radius * 2);
+        // Scale sprite to account for transparent padding - visible fruit should match physics body
+        sprite.setDisplaySize(radius * 2 * this.SPRITE_SCALE, radius * 2 * this.SPRITE_SCALE);
       } else {
         sprite = this.add.circle(midX, midY, radius, newConfig.color);
       }
