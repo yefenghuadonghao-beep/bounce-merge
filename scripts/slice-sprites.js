@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * Sprite Sheet Slicer
+ * Sprite Sheet Slicer v2
  * 
- * Slices balls_sheet.jpg into individual transparent PNGs
- * Input: 1280x720 grid (5 columns x 2 rows) = 10 sprites
- * Output: 128x128 PNGs with transparent background
+ * Properly centers each fruit sprite by detecting its alpha bbox,
+ * extracting the content, and centering it in a square canvas.
  */
 
 import sharp from 'sharp';
@@ -18,7 +17,7 @@ const __dirname = dirname(__filename);
 
 const INPUT_SHEET = join(__dirname, '../art/balls_sheet.jpg');
 const OUTPUT_DIR = join(__dirname, '../assets/sprites');
-const OUTPUT_SIZE = 128;
+const OUTPUT_SIZE = 256; // 256x256 for sharper rendering
 
 const GRID_COLS = 5;
 const GRID_ROWS = 2;
@@ -28,18 +27,9 @@ const SHEET_HEIGHT = 720;
 const CELL_WIDTH = SHEET_WIDTH / GRID_COLS;  // 256
 const CELL_HEIGHT = SHEET_HEIGHT / GRID_ROWS; // 360
 
-// Ball names in reading order (left to right, top to bottom)
 const BALL_NAMES = [
-  'blueberry',   // Level 1
-  'cherry',      // Level 2
-  'strawberry',  // Level 3
-  'lime',        // Level 4
-  'orange',      // Level 5
-  'peach',       // Level 6
-  'apple',       // Level 7
-  'coconut',     // Level 8
-  'watermelon',  // Level 9
-  'star'         // Level 10
+  'blueberry', 'cherry', 'strawberry', 'lime', 'orange',
+  'peach', 'apple', 'coconut', 'watermelon', 'star'
 ];
 
 async function ensureDir(dir) {
@@ -56,82 +46,70 @@ async function sliceSprite(index) {
   const name = BALL_NAMES[index];
   const level = index + 1;
   
-  const x = Math.floor(col * CELL_WIDTH);
-  const y = Math.floor(row * CELL_HEIGHT);
+  const cellX = Math.floor(col * CELL_WIDTH);
+  const cellY = Math.floor(row * CELL_HEIGHT);
   
-  console.log(`Processing Level ${level} (${name}): [${col}, ${row}] at (${x}, ${y})`);
+  console.log(`Processing Level ${level} (${name}): [${col}, ${row}] at (${cellX}, ${cellY})`);
   
   try {
     const outputPath = join(OUTPUT_DIR, `ball_${level}_${name}.png`);
     
-    // Extract the cell from the sprite sheet
+    // Extract with wider search window to avoid edge cropping
+    const searchPadding = 40;
+    const searchX = Math.max(0, cellX - searchPadding);
+    const searchY = Math.max(0, cellY - searchPadding);
+    const searchWidth = Math.min(SHEET_WIDTH - searchX, Math.floor(CELL_WIDTH) + searchPadding * 2);
+    const searchHeight = Math.min(SHEET_HEIGHT - searchY, Math.floor(CELL_HEIGHT) + searchPadding * 2);
+    
     const { data: rawData, info: rawInfo } = await sharp(INPUT_SHEET)
-      .extract({
-        left: x,
-        top: y,
-        width: Math.floor(CELL_WIDTH),
-        height: Math.floor(CELL_HEIGHT)
-      })
+      .extract({ left: searchX, top: searchY, width: searchWidth, height: searchHeight })
       .ensureAlpha()
       .raw()
       .toBuffer({ resolveWithObject: true });
     
     const width = rawInfo.width;
     const height = rawInfo.height;
-    const channels = 4; // Force RGBA
-    
-    // Create new buffer with alpha channel
+    const channels = 4;
     const pixels = Buffer.alloc(width * height * channels);
     
     // Copy RGB and initialize alpha
     for (let i = 0; i < width * height; i++) {
-      const srcIdx = i * rawInfo.channels;
-      const dstIdx = i * channels;
-      pixels[dstIdx] = rawData[srcIdx];     // R
-      pixels[dstIdx + 1] = rawData[srcIdx + 1]; // G
-      pixels[dstIdx + 2] = rawData[srcIdx + 2]; // B
-      pixels[dstIdx + 3] = 255;             // A (initially opaque)
+      pixels[i * 4] = rawData[i * rawInfo.channels];
+      pixels[i * 4 + 1] = rawData[i * rawInfo.channels + 1];
+      pixels[i * 4 + 2] = rawData[i * rawInfo.channels + 2];
+      pixels[i * 4 + 3] = 255;
     }
     
-    // Step 1: Flood fill from edges to mark white background pixels
+    // Flood fill from edges to identify background
     const visited = new Uint8Array(width * height);
     const queue = [];
-    const WHITE_THRESHOLD = 235; // Slightly lower to catch off-white
-    const COLOR_TOLERANCE = 15;
+    const WHITE_THRESHOLD = 228;
     
-    // Helper to check if pixel is white/light enough
     const isWhiteish = (x, y) => {
-      const idx = (y * width + x) * channels;
-      const r = pixels[idx];
-      const g = pixels[idx + 1];
-      const b = pixels[idx + 2];
-      // Check if it's very light AND close to neutral gray
+      const idx = (y * width + x) * 4;
+      const r = pixels[idx], g = pixels[idx + 1], b = pixels[idx + 2];
       return r > WHITE_THRESHOLD && g > WHITE_THRESHOLD && b > WHITE_THRESHOLD &&
-             Math.abs(r - g) < COLOR_TOLERANCE && Math.abs(g - b) < COLOR_TOLERANCE;
+             Math.abs(r - g) < 20 && Math.abs(g - b) < 20;
     };
     
-    // Helper to mark pixel as background
     const markBackground = (x, y) => {
       if (x < 0 || x >= width || y < 0 || y >= height) return;
       const pixelIdx = y * width + x;
-      if (visited[pixelIdx]) return;
-      if (!isWhiteish(x, y)) return;
-      
+      if (visited[pixelIdx] || !isWhiteish(x, y)) return;
       visited[pixelIdx] = 1;
       queue.push([x, y]);
     };
     
-    // Start flood fill from all edges
+    // Flood fill from edges
     for (let x = 0; x < width; x++) {
-      markBackground(x, 0); // Top edge
-      markBackground(x, height - 1); // Bottom edge
+      markBackground(x, 0);
+      markBackground(x, height - 1);
     }
     for (let y = 0; y < height; y++) {
-      markBackground(0, y); // Left edge
-      markBackground(width - 1, y); // Right edge
+      markBackground(0, y);
+      markBackground(width - 1, y);
     }
     
-    // Process queue
     while (queue.length > 0) {
       const [x, y] = queue.shift();
       markBackground(x - 1, y);
@@ -140,13 +118,11 @@ async function sliceSprite(index) {
       markBackground(x, y + 1);
     }
     
-    // Step 2: Apply circular mask centered on content
-    // Find bounding box of non-background content
+    // Find alpha bounding box of content
     let minX = width, maxX = 0, minY = height, maxY = 0;
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        const pixelIdx = y * width + x;
-        if (!visited[pixelIdx] && !isWhiteish(x, y)) {
+        if (!visited[y * width + x]) {
           minX = Math.min(minX, x);
           maxX = Math.max(maxX, x);
           minY = Math.min(minY, y);
@@ -155,65 +131,58 @@ async function sliceSprite(index) {
       }
     }
     
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-    const radius = Math.max(maxX - minX, maxY - minY) / 2 + 5; // Add small padding
-    const featherPixels = 3; // Feather edge to remove white halos
+    console.log(`  Alpha bbox: (${minX},${minY},${maxX},${maxY}) = ${maxX - minX}x${maxY - minY}px`);
     
-    // Step 3: Set alpha based on flood fill + circular mask
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const idx = (y * width + x) * channels;
-        const pixelIdx = y * width + x;
-        const alphaIdx = idx + 3;
-        
-        if (visited[pixelIdx]) {
-          // Background pixel from flood fill
-          pixels[alphaIdx] = 0;
-        } else {
-          // Calculate distance from center for circular mask
-          const dx = x - centerX;
-          const dy = y - centerY;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          
-          if (dist > radius) {
-            // Outside circle
-            pixels[alphaIdx] = 0;
-          } else if (dist > radius - featherPixels) {
-            // Feather edge
-            const alpha = ((radius - dist) / featherPixels) * 255;
-            pixels[alphaIdx] = Math.max(0, Math.min(255, Math.floor(alpha)));
-          } else {
-            // Inside circle
-            pixels[alphaIdx] = 255;
-          }
-        }
-      }
+    // Set alpha channel based on flood fill
+    for (let i = 0; i < width * height; i++) {
+      if (visited[i]) pixels[i * 4 + 3] = 0;
     }
     
-    // Create image from processed buffer
-    const transparentImage = sharp(pixels, {
-      raw: {
-        width: width,
-        height: height,
-        channels: channels
-      }
-    });
+    // Extract content and center in square canvas
+    const contentWidth = maxX - minX + 1;
+    const contentHeight = maxY - minY + 1;
+    const contentSize = Math.max(contentWidth, contentHeight);
+    const padding = Math.ceil(contentSize * 0.04); // 4% padding
+    const canvasSize = contentSize + padding * 2;
     
-    // Save with transparency (don't trim, just resize to square)
-    await transparentImage
-      .resize(OUTPUT_SIZE, OUTPUT_SIZE, {
-        fit: 'contain',
+    console.log(`  Canvas: ${canvasSize}x${canvasSize} (content ${contentWidth}x${contentHeight})`);
+    
+    const contentBuffer = await sharp(pixels, { raw: { width, height, channels: 4 } })
+      .extract({ left: minX, top: minY, width: contentWidth, height: contentHeight })
+      .png()
+      .toBuffer();
+    
+    const offsetX = Math.floor((canvasSize - contentWidth) / 2);
+    const offsetY = Math.floor((canvasSize - contentHeight) / 2);
+    
+    const squareCanvas = await sharp(contentBuffer)
+      .extend({
+        top: offsetY,
+        bottom: canvasSize - contentHeight - offsetY,
+        left: offsetX,
+        right: canvasSize - contentWidth - offsetX,
         background: { r: 0, g: 0, b: 0, alpha: 0 }
       })
-      .png({ compressionLevel: 9, force: true })
+      .toBuffer();
+    
+    const canvasInfo = await sharp(squareCanvas).metadata();
+    console.log(`  Extended canvas: ${canvasInfo.width}x${canvasInfo.height}`);
+    
+    await sharp(squareCanvas)
+      .resize({
+        width: OUTPUT_SIZE,
+        height: OUTPUT_SIZE,
+        fit: 'fill',
+        kernel: 'lanczos3'
+      })
+      .png({ compressionLevel: 9 })
       .toFile(outputPath);
     
     const stats = await fs.stat(outputPath);
-    console.log(`  ✓ Saved ${name}: ${outputPath} (${(stats.size / 1024).toFixed(1)} KB)`);
+    console.log(`  ✓ Saved: ${(stats.size / 1024).toFixed(1)} KB\n`);
     
   } catch (err) {
-    console.error(`  ✗ Failed to process ${name}:`, err.message);
+    console.error(`  ✗ Failed:`, err.message);
     throw err;
   }
 }
@@ -222,7 +191,7 @@ async function optimizeBackground() {
   const inputPath = join(__dirname, '../art/background.jpg');
   const outputPath = join(__dirname, '../assets/background.jpg');
   
-  console.log('\nOptimizing background image...');
+  console.log('Optimizing background image...');
   
   await sharp(inputPath)
     .resize(720, 1280, { fit: 'cover' })
@@ -230,31 +199,25 @@ async function optimizeBackground() {
     .toFile(outputPath);
   
   const stats = await fs.stat(outputPath);
-  console.log(`✓ Background optimized: ${(stats.size / 1024).toFixed(1)} KB`);
+  console.log(`✓ Background optimized: ${(stats.size / 1024).toFixed(1)} KB\n`);
 }
 
 async function main() {
-  console.log('🎨 Sprite Sheet Slicer\n');
+  console.log('🎨 Sprite Sheet Slicer v2\n');
   console.log(`Input: ${INPUT_SHEET}`);
-  console.log(`Output directory: ${OUTPUT_DIR}`);
-  console.log(`Grid: ${GRID_COLS}x${GRID_ROWS} = ${GRID_COLS * GRID_ROWS} sprites`);
-  console.log(`Cell size: ${CELL_WIDTH}x${CELL_HEIGHT}`);
+  console.log(`Output: ${OUTPUT_DIR}`);
+  console.log(`Grid: ${GRID_COLS}x${GRID_ROWS}, Cell: ${CELL_WIDTH}x${CELL_HEIGHT}`);
   console.log(`Output size: ${OUTPUT_SIZE}x${OUTPUT_SIZE}\n`);
   
   await ensureDir(OUTPUT_DIR);
   
-  // Process all sprites
   for (let i = 0; i < BALL_NAMES.length; i++) {
     await sliceSprite(i);
   }
   
-  // Optimize background
   await optimizeBackground();
   
-  console.log('\n✅ All sprites generated successfully!');
-  console.log(`\nOutput files:`);
-  console.log(`  - ${OUTPUT_DIR}/ball_*.png (10 files)`);
-  console.log(`  - ../assets/background.jpg`);
+  console.log('✅ All sprites generated successfully!');
 }
 
 main().catch(err => {
