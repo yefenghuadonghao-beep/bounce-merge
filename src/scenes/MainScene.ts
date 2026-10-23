@@ -24,8 +24,8 @@ export class MainScene extends Phaser.Scene {
   
   // Rail margins for physics walls alignment
   private readonly RAIL_MARGIN = 50;
-  // Floor position at top of bottom candy bar (prevent balls from falling through)
-  private readonly FLOOR_Y = 950;
+  // Floor position at top of bottom candy bar (visual measurement from background.jpg)
+  private readonly FLOOR_Y = 1110;
 
   constructor() {
     super({ key: 'MainScene' });

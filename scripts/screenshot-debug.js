@@ -21,9 +21,9 @@ import puppeteer from 'puppeteer';
     timeout: 30000
   });
   
-  console.log('Waiting for debug balls to spawn...');
-  // Wait for the delayed call (500ms) plus settling time
-  await new Promise(resolve => setTimeout(resolve, 3000));
+  console.log('Waiting for debug balls to spawn and settle...');
+  // Wait for the delayed call (500ms) plus longer settling time for physics
+  await new Promise(resolve => setTimeout(resolve, 5000));
   
   console.log('Taking screenshot...');
   await page.screenshot({ 

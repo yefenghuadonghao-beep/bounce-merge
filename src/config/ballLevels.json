@@ -1,12 +1,12 @@
 [
-  { "level": 1, "radius": 12, "color": 16738923, "score": 10, "sprite": "assets/sprites/ball_1_blueberry.png" },
-  { "level": 2, "radius": 14, "color": 16698967, "score": 25, "sprite": "assets/sprites/ball_2_cherry.png" },
-  { "level": 3, "radius": 16, "color": 4774907, "score": 50, "sprite": "assets/sprites/ball_3_strawberry.png" },
-  { "level": 4, "radius": 18, "color": 1954209, "score": 100, "sprite": "assets/sprites/ball_4_lime.png" },
-  { "level": 5, "radius": 20, "color": 15620719, "score": 200, "sprite": "assets/sprites/ball_5_orange.png" },
-  { "level": 6, "radius": 22, "color": 12938992, "score": 400, "sprite": "assets/sprites/ball_6_peach.png" },
-  { "level": 7, "radius": 24, "color": 16752627, "score": 800, "sprite": "assets/sprites/ball_7_apple.png" },
-  { "level": 8, "radius": 26, "color": 16753922, "score": 1600, "sprite": "assets/sprites/ball_8_coconut.png" },
-  { "level": 9, "radius": 28, "color": 3622650, "score": 3200, "sprite": "assets/sprites/ball_9_watermelon.png" },
-  { "level": 10, "radius": 30, "color": 16766720, "score": 6400, "sprite": "assets/sprites/ball_10_star.png" }
+  { "level": 1, "radius": 18, "color": 16738923, "score": 10, "sprite": "assets/sprites/ball_1_blueberry.png" },
+  { "level": 2, "radius": 24, "color": 16698967, "score": 25, "sprite": "assets/sprites/ball_2_cherry.png" },
+  { "level": 3, "radius": 30, "color": 4774907, "score": 50, "sprite": "assets/sprites/ball_3_strawberry.png" },
+  { "level": 4, "radius": 36, "color": 1954209, "score": 100, "sprite": "assets/sprites/ball_4_lime.png" },
+  { "level": 5, "radius": 42, "color": 15620719, "score": 200, "sprite": "assets/sprites/ball_5_orange.png" },
+  { "level": 6, "radius": 48, "color": 12938992, "score": 400, "sprite": "assets/sprites/ball_6_peach.png" },
+  { "level": 7, "radius": 54, "color": 16752627, "score": 800, "sprite": "assets/sprites/ball_7_apple.png" },
+  { "level": 8, "radius": 60, "color": 16753922, "score": 1600, "sprite": "assets/sprites/ball_8_coconut.png" },
+  { "level": 9, "radius": 66, "color": 3622650, "score": 3200, "sprite": "assets/sprites/ball_9_watermelon.png" },
+  { "level": 10, "radius": 72, "color": 16766720, "score": 6400, "sprite": "assets/sprites/ball_10_star.png" }
 ]
