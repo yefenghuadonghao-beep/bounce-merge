@@ -1,6 +1,8 @@
 import { IPlatform } from './IPlatform';
 
 export class WebPlatform implements IPlatform {
+  private static audio?: AudioContext;
+  private static volume = 0.16;
   private storage: Map<string, string> = new Map();
 
   async saveData(key: string, value: string): Promise<void> {
@@ -47,8 +49,35 @@ export class WebPlatform implements IPlatform {
   }
 
   playSound(soundId: string): void {
-    // Stub for web - to be implemented with Howler.js or Web Audio API
-    console.log(`Playing sound: ${soundId}`);
+    if (WebPlatform.volume === 0 || typeof AudioContext === 'undefined') return;
+    try {
+      const audio = WebPlatform.audio ??= new AudioContext();
+      if (audio.state === 'suspended') void audio.resume().catch(() => {});
+      const level = Number(soundId.split('_')[1]) || 1;
+      const frequency = soundId.startsWith('merge') ? 330 * Math.pow(1.12, level) : 240;
+      const oscillator = audio.createOscillator();
+      const gain = audio.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(frequency, audio.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(frequency * 1.5, audio.currentTime + 0.12);
+      gain.gain.setValueAtTime(WebPlatform.volume, audio.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.18);
+      oscillator.connect(gain).connect(audio.destination);
+      oscillator.start();
+      oscillator.stop(audio.currentTime + 0.2);
+      oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
+    } catch {
+      // 静音或不支持音频的环境仍可正常游玩。
+    }
+  }
+
+  toggleSound(): boolean {
+    WebPlatform.volume = WebPlatform.volume > 0 ? 0 : 0.16;
+    return WebPlatform.volume > 0;
+  }
+
+  isSoundEnabled(): boolean {
+    return WebPlatform.volume > 0;
   }
 
   playMusic(musicId: string): void {
@@ -60,7 +89,7 @@ export class WebPlatform implements IPlatform {
   }
 
   setVolume(volume: number): void {
-    console.log(`Setting volume: ${volume}`);
+    WebPlatform.volume = Math.max(0, Math.min(1, volume));
   }
 
   async share(title: string, imageUrl?: string): Promise<boolean> {

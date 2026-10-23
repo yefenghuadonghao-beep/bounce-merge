@@ -51,6 +51,8 @@ export class GameController {
   }
 
   processMerge(level: number, currentTime: number): { score: number; newLevel: number } {
+    this.gameState.recordMerge(level + 1);
+    this.updateCombo(currentTime);
     this.gameState.incrementCombo(currentTime);
     const state = this.gameState.getState();
     
@@ -61,10 +63,10 @@ export class GameController {
       state.mergeChainBonus
     );
     
-    this.gameState.addScore(score);
+    const awardedScore = this.gameState.addScore(score);
     
     return {
-      score,
+      score: awardedScore,
       newLevel: level + 1
     };
   }
@@ -72,8 +74,7 @@ export class GameController {
   processWallBounce(): number {
     const state = this.gameState.getState();
     if (state.wallBounceScore > 0) {
-      this.gameState.addScore(state.wallBounceScore);
-      return state.wallBounceScore;
+      return this.gameState.addScore(state.wallBounceScore);
     }
     return 0;
   }

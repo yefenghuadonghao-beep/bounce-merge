@@ -3,31 +3,49 @@
   "height": 1280,
   "background": "assets/background.jpg",
   "physics": {
-    "gravity": 1.5,
-    "restitution": 0.6,
-    "friction": 0.01,
-    "frictionAir": 0.001,
+    "gravity": 1.2,
+    "restitution": 0.42,
+    "friction": 0.015,
+    "frictionAir": 0.006,
     "density": 0.001
   },
   "board": {
-    "pegRows": 9,
-    "pegColumns": 7,
+    "pegRows": 2,
+    "pegColumns": 2,
     "pegRadius": 10,
     "pegColor": 16761385,
     "pegStrokeColor": 16777215,
     "pegStrokeWidth": 2,
-    "startY": 280,
+    "startY": 440,
     "endY": 1000,
-    "spacing": 75
+    "spacing": 320,
+    "pegPositions": [
+      {
+        "x": 180,
+        "y": 450
+      },
+      {
+        "x": 540,
+        "y": 450
+      },
+      {
+        "x": 240,
+        "y": 640
+      },
+      {
+        "x": 480,
+        "y": 640
+      }
+    ]
   },
   "launcher": {
     "startX": 360,
-    "startY": 200,
-    "aimLineLength": 150,
-    "launchForce": 0.015
+    "startY": 270,
+    "aimLineLength": 210,
+    "launchForce": 0.012
   },
   "scoring": {
-    "comboDecayTime": 2000,
-    "comboMultiplier": 1.5
+    "comboDecayTime": 3500,
+    "comboMultiplier": 1.25
   }
 }

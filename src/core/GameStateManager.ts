@@ -13,6 +13,7 @@ export class GameStateManager {
     return {
       currentLevel: 1,
       score: 0,
+      highestBallLevel: 1,
       shotsRemaining: this.levelConfigs[0]?.shots || 15,
       combo: 0,
       comboTimer: 0,
@@ -33,8 +34,14 @@ export class GameStateManager {
     this.state = { ...state };
   }
 
-  addScore(points: number): void {
-    this.state.score += Math.floor(points * this.state.scoreMultiplier);
+  addScore(points: number): number {
+    const score = Math.floor(points * this.state.scoreMultiplier);
+    this.state.score += score;
+    return score;
+  }
+
+  recordMerge(level: number): void {
+    this.state.highestBallLevel = Math.max(this.state.highestBallLevel, level);
   }
 
   incrementCombo(currentTime: number): void {
@@ -55,28 +62,38 @@ export class GameStateManager {
   }
 
   useShot(): void {
-    this.state.shotsRemaining--;
+    this.state.shotsRemaining = Math.max(0, this.state.shotsRemaining - 1);
   }
 
   getLevelConfig(): LevelConfig {
     const config = this.levelConfigs.find(l => l.level === this.state.currentLevel);
-    return config || this.levelConfigs[this.levelConfigs.length - 1];
+    if (config) return config;
+
+    const last = this.levelConfigs[this.levelConfigs.length - 1];
+    const extraLevels = this.state.currentLevel - last.level;
+    return { ...last, level: this.state.currentLevel, targetScore: Math.ceil(last.targetScore * Math.pow(1.5, extraLevels)) };
   }
 
   hasReachedTarget(): boolean {
     const config = this.getLevelConfig();
+    if (config.targetBallLevel) return this.state.highestBallLevel >= config.targetBallLevel;
     return this.state.score >= config.targetScore;
   }
 
   hasFailedLevel(): boolean {
-    const config = this.getLevelConfig();
-    return this.state.shotsRemaining <= 0 && this.state.score < config.targetScore;
+    return this.state.shotsRemaining <= 0 && !this.hasReachedTarget();
   }
 
   advanceLevel(): void {
     this.state.currentLevel++;
     const config = this.getLevelConfig();
-    this.state.shotsRemaining = config.shots;
+    const extraShots = this.state.upgrades.reduce((total, upgrade) => {
+      return total + (upgrade.id === 'extra_shot' ? upgrade.value : 0);
+    }, 0);
+    this.state.shotsRemaining = config.shots + extraShots;
+    this.resetCombo();
+    this.state.highestBallLevel = 1;
+    this.state.comboTimer = 0;
   }
 
   applyUpgrade(upgrade: Upgrade): void {
@@ -90,16 +107,16 @@ export class GameStateManager {
         this.state.scoreMultiplier *= upgrade.value;
         break;
       case 'wall_bounce_score':
-        this.state.wallBounceScore = upgrade.value;
+        this.state.wallBounceScore += upgrade.value;
         break;
       case 'merge_chain_bonus':
-        this.state.mergeChainBonus = upgrade.value;
+        this.state.mergeChainBonus += upgrade.value;
         break;
       case 'starting_level_boost':
         this.state.startingBallLevel += upgrade.value;
         break;
       case 'bigger_balls':
-        this.state.ballSizeMultiplier *= upgrade.value;
+        this.state.ballSizeMultiplier = Math.min(1.6, this.state.ballSizeMultiplier * upgrade.value);
         break;
     }
   }

@@ -172,4 +172,18 @@ describe('GameController', () => {
     expect(state.shotsRemaining).toBe(14);
     expect(state.combo).toBe(1);
   });
+  it('returns the actual awarded score after upgrades', () => {
+    controller.applyUpgrade({ id: 'score_boost', name: '', description: '', type: 'multiplier', value: 1.2 });
+    const result = controller.processMerge(1, 1000);
+    expect(result.score).toBe(30);
+    expect(controller.getGameState().score).toBe(result.score);
+  });
+
+  it('expires combos before a new merge even without an update tick', () => {
+    controller.processMerge(1, 1000);
+    const result = controller.processMerge(1, 4000);
+    expect(result.score).toBe(25);
+    expect(controller.getGameState().combo).toBe(1);
+  });
+
 });

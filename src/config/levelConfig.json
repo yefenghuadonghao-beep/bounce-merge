@@ -1,12 +1,62 @@
 [
-  { "level": 1, "targetScore": 500, "shots": 15 },
-  { "level": 2, "targetScore": 1000, "shots": 15 },
-  { "level": 3, "targetScore": 2000, "shots": 15 },
-  { "level": 4, "targetScore": 3500, "shots": 15 },
-  { "level": 5, "targetScore": 5500, "shots": 15 },
-  { "level": 6, "targetScore": 8000, "shots": 15 },
-  { "level": 7, "targetScore": 12000, "shots": 15 },
-  { "level": 8, "targetScore": 18000, "shots": 15 },
-  { "level": 9, "targetScore": 25000, "shots": 15 },
-  { "level": 10, "targetScore": 35000, "shots": 15 }
+  {
+    "level": 1,
+    "targetScore": 500,
+    "shots": 18,
+    "targetBallLevel": 3
+  },
+  {
+    "level": 2,
+    "targetScore": 1000,
+    "shots": 22,
+    "targetBallLevel": 4
+  },
+  {
+    "level": 3,
+    "targetScore": 1500,
+    "shots": 22,
+    "targetBallLevel": 5
+  },
+  {
+    "level": 4,
+    "targetScore": 2000,
+    "shots": 22,
+    "targetBallLevel": 6
+  },
+  {
+    "level": 5,
+    "targetScore": 2500,
+    "shots": 22,
+    "targetBallLevel": 7
+  },
+  {
+    "level": 6,
+    "targetScore": 3000,
+    "shots": 22,
+    "targetBallLevel": 8
+  },
+  {
+    "level": 7,
+    "targetScore": 3500,
+    "shots": 22,
+    "targetBallLevel": 9
+  },
+  {
+    "level": 8,
+    "targetScore": 4000,
+    "shots": 22,
+    "targetBallLevel": 10
+  },
+  {
+    "level": 9,
+    "targetScore": 4500,
+    "shots": 22,
+    "targetBallLevel": 10
+  },
+  {
+    "level": 10,
+    "targetScore": 5000,
+    "shots": 22,
+    "targetBallLevel": 10
+  }
 ]

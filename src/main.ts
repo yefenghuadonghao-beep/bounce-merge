@@ -27,6 +27,7 @@ const phaserConfig: Phaser.Types.Core.GameConfig = {
     default: 'matter',
     matter: {
       gravity: { x: 0, y: gameConfig.physics.gravity },
+      enableSleeping: true,
       debug: false
     }
   },
@@ -40,9 +41,7 @@ const phaserConfig: Phaser.Types.Core.GameConfig = {
 const game = new Phaser.Game(phaserConfig);
 
 // Expose game globally for debug purposes
-(window as any).game = game;
-(window as any).gameController = gameController;
-(window as any).gameConfig = gameConfig;
+Object.assign(window, { game, gameController, gameConfig });
 
 // Check for debug parameters
 const urlParams = new URLSearchParams(window.location.search);

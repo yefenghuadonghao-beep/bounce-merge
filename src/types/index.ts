@@ -9,6 +9,7 @@ export interface BallLevel {
 export interface LevelConfig {
   level: number;
   targetScore: number;
+  targetBallLevel?: number;
   shots: number;
 }
 
@@ -23,6 +24,7 @@ export interface Upgrade {
 export interface GameState {
   currentLevel: number;
   score: number;
+  highestBallLevel: number;
   shotsRemaining: number;
   combo: number;
   comboTimer: number;
@@ -53,6 +55,7 @@ export interface PhysicsConfig {
 }
 
 export interface BoardConfig {
+  pegPositions?: { x: number; y: number }[];
   pegRows: number;
   pegColumns: number;
   pegRadius: number;
