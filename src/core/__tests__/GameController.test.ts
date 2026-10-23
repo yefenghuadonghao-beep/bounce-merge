@@ -187,3 +187,21 @@ describe('GameController', () => {
   });
 
 });
+
+
+describe('run highlights', () => {
+  it('preserves highlights across stages, ignores expired combos, and resets for a new run', () => {
+    const controller = new GameController(mockBallLevels, mockLevelConfigs, mockGameConfig);
+    controller.processMerge(1, 100);
+    controller.processMerge(2, 200);
+    controller.processMerge(1, 10000);
+    expect(controller.getRunSummary()).toEqual({ merges: 3, bestCombo: 2, highest: 3 });
+    controller.advanceLevel();
+    expect(controller.getRunSummary().highest).toBe(3);
+    const summary = controller.getRunSummary();
+    summary.bestCombo = 999;
+    expect(controller.getRunSummary().bestCombo).toBe(2);
+    controller.reset();
+    expect(controller.getRunSummary()).toEqual({ merges: 0, bestCombo: 0, highest: 1 });
+  });
+});

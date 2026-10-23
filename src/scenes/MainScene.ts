@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GameController } from '../core/GameController';
 import { GameConfig } from '../types';
+import { MergeCharge } from '../core/MergeCharge';
 import { ShotQueue } from '../core/ShotQueue';
 import { assetUrl } from '../platform/assets';
 import { button, characterNames, ink, panel, paper } from '../ui/theme';
@@ -19,6 +20,10 @@ export class MainScene extends Phaser.Scene {
   private shotQueue!: ShotQueue;
   private launcherPreview!: Phaser.GameObjects.Image;
   private nextPreview!: Phaser.GameObjects.Image;
+  private charge = new MergeCharge();
+  private chargeBar?: Phaser.GameObjects.Graphics;
+  private comboBar?: Phaser.GameObjects.Graphics;
+  private matchRings?: Phaser.GameObjects.Graphics;
   private shakesRemaining = 1;
   private swapsRemaining = 2;
   private shakeLabel!: Phaser.GameObjects.Text;
@@ -50,6 +55,7 @@ export class MainScene extends Phaser.Scene {
     this.gameController = data.gameController;
     this.gameConfig = data.gameConfig;
     this.balls = [];
+    this.charge = new MergeCharge();
     this.isAiming = false;
     this.canShoot = true;
     this.shotStartedAt = 0;
@@ -90,13 +96,18 @@ export class MainScene extends Phaser.Scene {
     paper(this);
     panel(this, 45, 220, 630, 880, 0xfffcf2);
     this.add.text(82, 246, '情绪收纳盒', { fontSize: '23px', color: ink, fontStyle: 'bold' });
-    this.add.text(360, 800, '今天的情绪，\n碰一碰就好了。', {
+    this.add.text(360, 800, '今天的坏情绪，\n一碰就下班。', {
       fontSize: '34px', color: '#d5cbb9', align: 'center', lineSpacing: 16
     }).setOrigin(0.5);
     this.add.text(360, 930, '同款团子相碰 → 解锁新搭子', { fontSize: '21px', color: '#c1b49e' }).setOrigin(0.5);
     this.createPegBoard();
     this.createUI();
     this.createAimingLine();
+    this.matchRings = this.add.graphics().setDepth(2);
+    this.chargeBar = this.add.graphics();
+    this.comboBar = this.add.graphics().setDepth(11);
+    this.uiTexts.charge = this.add.text(360, 340, '', { fontSize: '19px', color: ink }).setOrigin(0.5);
+
     const { startX, startY } = this.gameConfig.launcher;
     this.add.circle(startX, startY, 42, 0xffffff, 0.65).setStrokeStyle(3, 0x49392d);
     this.launcherPreview = this.add.image(startX, startY, 'characters', `ball_${this.shotQueue.peek()[0]}`).setDisplaySize(56, 56);
@@ -191,7 +202,10 @@ export class MainScene extends Phaser.Scene {
 
   private createPegBoard() {
     // 给中路留出可瞄准的通道，两侧保留弹射变化。
-    const pegs = this.gameConfig.board.pegPositions ?? [];
+    const layouts = [this.gameConfig.board.pegPositions ?? [],
+      [{ x: 150, y: 460 }, { x: 570, y: 460 }, { x: 270, y: 650 }, { x: 450, y: 650 }],
+      [{ x: 220, y: 470 }, { x: 500, y: 470 }, { x: 130, y: 670 }, { x: 590, y: 670 }]];
+    const pegs = layouts[(this.gameController.getGameState().currentLevel - 1) % layouts.length];
     for (let i = 0, length = pegs.length; i < length; i++) {
       const { x, y } = pegs[i];
       const peg = this.add.circle(x, y, 14, 0xe9be69).setStrokeStyle(3, 0x49392d);
@@ -241,7 +255,7 @@ export class MainScene extends Phaser.Scene {
     this.uiTexts.shots = this.add.text(48, 168, '', { fontSize: '21px', color: ink });
     this.add.text(606, 78, '下一位', { fontSize: '18px', color: '#8b7c64' }).setOrigin(0.5);
     this.nextPreview = this.add.image(606, 129, 'characters', `ball_${this.shotQueue.peek()[1]}`).setDisplaySize(50, 50);
-    this.comboText = this.add.text(360, 355, '', {
+    this.comboText = this.add.text(360, 390, '', {
       fontSize: '42px', color: '#fff7cd', fontStyle: 'bold', stroke: '#785d42', strokeThickness: 5
     }).setOrigin(0.5).setDepth(10).setVisible(false);
   }
@@ -254,11 +268,18 @@ export class MainScene extends Phaser.Scene {
     this.uiTexts.progress.setText(`已遇见：${characterNames[state.highestBallLevel]}`);
     this.shakeLabel?.setText(`抱团取暖 ×${this.shakesRemaining}`);
     this.swapLabel?.setText(`换个搭子 ×${this.swapsRemaining}`);
+    if (this.uiTexts.charge) {
+      const full = this.charge.rewards >= this.charge.limit;
+      this.uiTexts.charge.setText(full ? '本关充能奖励已领满' : `抱团充能 ${this.charge.charge}/4 · 3 连合后双倍充能`);
+      this.chargeBar?.clear().fillStyle(0xe6decd).fillRoundedRect(180, 360, 360, 8, 4);
+      const progress = full ? 1 : this.charge.charge / this.charge.threshold;
+      if (progress > 0) this.chargeBar?.fillStyle(0xee976e).fillRoundedRect(180, 360, 360 * progress, 8, 4);
+    }
     const queue = this.shotQueue.peek();
     this.launcherPreview?.setTexture('characters', `ball_${queue[0]}`).setDisplaySize(56, 56);
     this.nextPreview.setTexture('characters', `ball_${queue[1]}`).setDisplaySize(50, 50);
     if (state.combo > 1) {
-      this.comboText.setText(`情绪释放！${state.combo} 连合`).setVisible(true);
+      this.comboText.setText(`${state.combo} 连合！继续碰！`).setVisible(true);
       this.tweens.killTweensOf(this.comboText);
       this.tweens.add({ targets: this.comboText, scale: { from: 1.25, to: 1 }, duration: 180 });
     }
@@ -418,14 +439,31 @@ export class MainScene extends Phaser.Scene {
     const state = this.gameController.getGameState();
 
     this.createMergeEffect(midX, midY, newConfig.color);
-    this.showScorePopup(midX, midY, score);
+    this.showScorePopup(midX, midY, score, newLevel);
     this.cameras.main.shake(80, Math.min(0.007, 0.0015 * state.combo));
-    this.platform.playSound(`merge_${newLevel}`);
+    this.platform.playSound(`merge_${newLevel}_${state.combo}`);
+    if (this.charge.add(state.combo)) {
+      this.shakesRemaining++;
+      const reward = this.add.text(360, 460, '充满了！抱团取暖 +1', {
+        fontSize: '30px', color: '#547044', backgroundColor: '#fff9e7', padding: { x: 16, y: 10 }
+      }).setOrigin(0.5).setDepth(15);
+      this.tweens.add({ targets: reward, y: 420, alpha: 0, delay: 850, duration: 450, onComplete: () => reward.destroy() });
+    }
 
     this.removeBall(ball1);
     this.removeBall(ball2);
 
-    this.spawnBall(midX, midY, newLevel);
+    const merged = this.spawnBall(midX, midY, newLevel);
+    // 弹性动画只作用于独立外观，避免缩放物理碰撞体。
+    if (merged) {
+      const diameter = (this.gameController.getBallConfig(newLevel)?.radius ?? 32) * state.ballSizeMultiplier * 2;
+      merged.sprite.setAlpha(0);
+      const echo = this.add.image(midX, midY, 'characters', `ball_${newLevel}`).setDisplaySize(diameter * 1.4, diameter * 0.75).setDepth(5);
+      this.tweens.add({ targets: echo, displayWidth: diameter, displayHeight: diameter, duration: 320, ease: 'Back.Out',
+        onUpdate: () => { if (merged.sprite.active) echo.setPosition(merged.sprite.x, merged.sprite.y); },
+        onComplete: () => { if (merged.sprite.active) merged.sprite.setAlpha(1); echo.destroy(); }
+      });
+    }
     this.settledSince = null;
 
     this.updateUI();
@@ -465,12 +503,14 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  private showScorePopup(x: number, y: number, score: number) {
-    const text = this.add.text(x, y, `+${score}`, {
+  private showScorePopup(x: number, y: number, score: number, level: number) {
+    const lines = ['', '', '脑子放空了', '我没事，真的', '咖啡续命！', '卡打了，人走了', '正在加载灵魂', '摸鱼使我快乐', '躺平也很可爱', '先溜为敬！', '准点下班！'];
+    const text = this.add.text(Phaser.Math.Clamp(x, 150, 570), y, `${lines[level]}\n+${score}`, {
       fontSize: '24px',
-      color: '#feca57',
+      color: '#49392d',
+      align: 'center', stroke: '#fff9e7', strokeThickness: 5,
       fontStyle: 'bold'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(12);
 
     this.scorePopups.push(text);
 
@@ -487,9 +527,37 @@ export class MainScene extends Phaser.Scene {
     });
   }
 
+  private showVictory() {
+    const state = this.gameController.getGameState();
+    const target = this.gameController.getLevelConfig().targetBallLevel ?? state.highestBallLevel;
+    const shade = this.add.rectangle(360, 660, 620, 870, 0xfffcf2, 0.9).setDepth(20);
+    const hero = this.add.image(360, 610, 'characters', `ball_${target}`).setDisplaySize(190, 190).setDepth(21);
+    this.add.text(360, 455, '坏情绪，碰掉了！', { fontSize: '42px', color: ink, fontStyle: 'bold' }).setOrigin(0.5).setDepth(21);
+    this.add.text(360, 775, `${characterNames[target]} 到岗\n本轮最高 ${this.gameController.getRunSummary().bestCombo} 连合`, {
+      fontSize: '28px', color: ink, align: 'center', lineSpacing: 16
+    }).setOrigin(0.5).setDepth(21);
+    this.tweens.add({ targets: hero, y: 580, duration: 450, yoyo: true, repeat: 1, ease: 'Sine.InOut' });
+    this.tweens.add({ targets: shade, alpha: { from: 0, to: 1 }, duration: 200 });
+  }
+
   update(time: number) {
     this.gameController.updateCombo(time);
     const state = this.gameController.getGameState();
+    this.comboBar?.clear();
+    if (state.combo > 1 && !this.resolving) {
+      const remaining = Math.max(0, 1 - (time - state.comboTimer) / this.gameConfig.scoring.comboDecayTime);
+      this.comboBar?.fillStyle(0xee976e).fillRect(240, 420, 240 * remaining, 5);
+    }
+    this.matchRings?.clear();
+    if (this.isAiming) {
+      const next = this.shotQueue.peek()[0];
+      for (let i = 0, length = this.balls.length; i < length; i++) {
+        const ball = this.balls[i];
+        if (ball.level !== next) continue;
+        const radius = (this.gameController.getBallConfig(next)?.radius ?? 26) * state.ballSizeMultiplier;
+        this.matchRings?.lineStyle(3, 0xd89458, 0.8).strokeCircle(ball.sprite.x, ball.sprite.y, radius + 7);
+      }
+    }
 
     if (state.combo === 0 && this.comboText.visible) {
       this.comboText.setVisible(false);
@@ -511,7 +579,8 @@ export class MainScene extends Phaser.Scene {
       this.aimLine?.setVisible(false);
       this.aimArrow?.setVisible(false);
       this.uiTexts.hint?.setText('情绪释放成功！领取一份小福利');
-      this.time.delayedCall(700, () => {
+      this.showVictory();
+      this.time.delayedCall(1700, () => {
         this.scene.start('UpgradeScene', { gameController: this.gameController, gameConfig: this.gameConfig });
       });
       return;

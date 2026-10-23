@@ -26,7 +26,7 @@ export class UpgradeScene extends Phaser.Scene {
     const state = this.gameController.getGameState();
     paper(this);
     this.add.text(360, 100, '情绪释放成功！', { fontSize: '55px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
-    this.add.text(360, 166, `第 ${state.currentLevel} 关完成 · 得分 ${state.score}`, { fontSize: '26px', color: '#8b7c64' }).setOrigin(0.5);
+    this.add.text(360, 166, `第 ${state.currentLevel} 关完成 · 最高 ${this.gameController.getRunSummary().bestCombo} 连合`, { fontSize: '26px', color: '#8b7c64' }).setOrigin(0.5);
     const target = this.gameController.getLevelConfig().targetBallLevel ?? state.highestBallLevel;
     if (this.textures.exists('characters')) this.add.image(360, 266, 'characters', `ball_${target}`).setDisplaySize(118, 118);
     this.add.text(360, 360, '打工辛苦了，领一份小福利', { fontSize: '28px', color: ink }).setOrigin(0.5);

@@ -16,6 +16,7 @@ export interface ScoreEvent {
 }
 
 export class GameController {
+  private summary = { merges: 0, bestCombo: 0, highest: 1 };
   private gameState: GameStateManager;
   private mergeSystem: MergeSystem;
   private gameConfig: GameConfig;
@@ -64,6 +65,9 @@ export class GameController {
     );
     
     const awardedScore = this.gameState.addScore(score);
+    this.summary.merges++;
+    this.summary.bestCombo = Math.max(this.summary.bestCombo, state.combo);
+    this.summary.highest = Math.max(this.summary.highest, level + 1);
     
     return {
       score: awardedScore,
@@ -108,7 +112,12 @@ export class GameController {
     return this.mergeSystem.getMaxLevel();
   }
 
+  getRunSummary() {
+    return { ...this.summary };
+  }
+
   reset() {
+    this.summary = { merges: 0, bestCombo: 0, highest: 1 };
     this.gameState.reset();
   }
 

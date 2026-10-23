@@ -22,6 +22,7 @@ describe('scene turn lifecycle', () => {
     scene['comboText'] = { visible: false } as Phaser.GameObjects.Text;
     scene.scene = { start: vi.fn() } as unknown as Phaser.Scenes.ScenePlugin;
     scene['canShoot'] = false;
+    scene['showVictory'] = vi.fn();
     scene.time = { delayedCall: vi.fn((_delay: number, callback: () => void) => callback()) } as unknown as Phaser.Time.Clock;
   });
 
@@ -131,6 +132,33 @@ describe('scene turn lifecycle', () => {
     expect(setVelocity).toHaveBeenCalledTimes(1);
     expect(scene['shakesRemaining']).toBe(0);
     expect(scene['settledSince']).toBeNull();
+  });
+
+  it('converts a three-merge chain into a rescue without spending shots, resetting next stage', () => {
+    const label = { setOrigin: vi.fn(), setDepth: vi.fn(), destroy: vi.fn() };
+    label.setOrigin.mockReturnValue(label);
+    label.setDepth.mockReturnValue(label);
+    scene.add = { text: vi.fn(() => label) } as unknown as Phaser.GameObjects.GameObjectFactory;
+    scene.tweens = { add: vi.fn() } as unknown as Phaser.Tweens.TweenManager;
+    scene.cameras = { main: { shake: vi.fn() } } as unknown as Phaser.Cameras.Scene2D.CameraManager;
+    scene['createMergeEffect'] = vi.fn();
+    scene['showScorePopup'] = vi.fn();
+    scene['removeBall'] = vi.fn();
+    scene['spawnBall'] = vi.fn();
+    scene['updateUI'] = vi.fn();
+    const shots = controller.getGameState().shotsRemaining;
+    const ball = { body: {} as MatterJS.BodyType, sprite: { x: 360, y: 900 } as Phaser.GameObjects.Image, level: 1 };
+    for (let i = 0; i < 3; i++) {
+      Object.assign(scene.time, { now: 100 + i * 100 });
+      scene['mergeBalls'](ball, { ...ball });
+    }
+    expect(scene['shakesRemaining']).toBe(2);
+    expect(scene['charge'].rewards).toBe(1);
+    expect(controller.getGameState().shotsRemaining).toBe(shots);
+    controller.advanceLevel();
+    scene.init({ gameController: controller, gameConfig: config });
+    expect(scene['shakesRemaining']).toBe(1);
+    expect(scene['charge'].charge).toBe(0);
   });
 
   it('ignores repeated upgrade clicks during a transition', () => {

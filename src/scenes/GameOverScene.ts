@@ -21,6 +21,7 @@ export class GameOverScene extends Phaser.Scene {
 
   create() {
     const state = this.gameController.getGameState();
+    const summary = this.gameController.getRunSummary();
     paper(this);
     this.add.text(360, 160, '今天也辛苦啦', { fontSize: '43px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(360, 225, `情绪释放到第 ${state.currentLevel} 关`, { fontSize: '27px', color: '#8b7c64' }).setOrigin(0.5);
@@ -28,11 +29,11 @@ export class GameOverScene extends Phaser.Scene {
     this.add.text(360, 355, '今日快乐值', { fontSize: '24px', color: '#8b7c64' }).setOrigin(0.5);
     this.add.text(360, 430, String(state.score), { fontSize: '74px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
     const record = this.add.text(360, 510, '', { fontSize: '23px', color: '#8b7c64' }).setOrigin(0.5);
-    this.add.text(360, 585, `本关合出：${characterNames[state.highestBallLevel]}`, { fontSize: '27px', color: ink }).setOrigin(0.5);
-    this.add.text(360, 760, '小技巧：看好下一球，连续追击同款团子\n球分散时，留一次「抱团取暖」救场', {
+    this.add.text(360, 585, `本轮最高：${characterNames[summary.highest]}`, { fontSize: '27px', color: ink }).setOrigin(0.5);
+    this.add.text(360, 760, `最高 ${summary.bestCombo} 连合 · 碰掉 ${summary.merges} 次坏情绪\n下一次，试试让连合不断档！`, {
       fontSize: '24px', color: '#8b7c64', align: 'center', lineSpacing: 14
     }).setOrigin(0.5);
-    if (this.textures.exists('characters')) this.add.image(360, 1110, 'characters', `ball_${state.highestBallLevel}`).setDisplaySize(135, 135);
+    if (this.textures.exists('characters')) this.add.image(360, 1110, 'characters', `ball_${summary.highest}`).setDisplaySize(135, 135);
     button(this, 360, 930, 440, '再摸一会儿鱼', () => this.restart());
     this.saveRecord(record);
   }
