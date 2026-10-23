@@ -65,7 +65,7 @@ async function sliceSprite(index) {
     const outputPath = join(OUTPUT_DIR, `ball_${level}_${name}.png`);
     
     // Extract the cell from the sprite sheet
-    const cellBuffer = await sharp(INPUT_SHEET)
+    const { data: rawData, info: rawInfo } = await sharp(INPUT_SHEET)
       .extract({
         left: x,
         top: y,
@@ -73,72 +73,141 @@ async function sliceSprite(index) {
         height: Math.floor(CELL_HEIGHT)
       })
       .ensureAlpha()
-      .toBuffer();
-    
-    // Process pixels to remove white background
-    const { data, info } = await sharp(cellBuffer)
       .raw()
       .toBuffer({ resolveWithObject: true });
     
-    const pixels = Buffer.from(data);
+    const width = rawInfo.width;
+    const height = rawInfo.height;
+    const channels = 4; // Force RGBA
     
-    // Remove white/very light pixels (make them transparent)
-    // Check each pixel and set alpha to 0 if it's close to white
-    for (let i = 0; i < pixels.length; i += info.channels) {
-      const r = pixels[i];
-      const g = pixels[i + 1];
-      const b = pixels[i + 2];
-      const a = info.channels === 4 ? i + 3 : null;
+    // Create new buffer with alpha channel
+    const pixels = Buffer.alloc(width * height * channels);
+    
+    // Copy RGB and initialize alpha
+    for (let i = 0; i < width * height; i++) {
+      const srcIdx = i * rawInfo.channels;
+      const dstIdx = i * channels;
+      pixels[dstIdx] = rawData[srcIdx];     // R
+      pixels[dstIdx + 1] = rawData[srcIdx + 1]; // G
+      pixels[dstIdx + 2] = rawData[srcIdx + 2]; // B
+      pixels[dstIdx + 3] = 255;             // A (initially opaque)
+    }
+    
+    // Step 1: Flood fill from edges to mark white background pixels
+    const visited = new Uint8Array(width * height);
+    const queue = [];
+    const WHITE_THRESHOLD = 235; // Slightly lower to catch off-white
+    const COLOR_TOLERANCE = 15;
+    
+    // Helper to check if pixel is white/light enough
+    const isWhiteish = (x, y) => {
+      const idx = (y * width + x) * channels;
+      const r = pixels[idx];
+      const g = pixels[idx + 1];
+      const b = pixels[idx + 2];
+      // Check if it's very light AND close to neutral gray
+      return r > WHITE_THRESHOLD && g > WHITE_THRESHOLD && b > WHITE_THRESHOLD &&
+             Math.abs(r - g) < COLOR_TOLERANCE && Math.abs(g - b) < COLOR_TOLERANCE;
+    };
+    
+    // Helper to mark pixel as background
+    const markBackground = (x, y) => {
+      if (x < 0 || x >= width || y < 0 || y >= height) return;
+      const pixelIdx = y * width + x;
+      if (visited[pixelIdx]) return;
+      if (!isWhiteish(x, y)) return;
       
-      // If pixel is very light (RGB all > 240), make it transparent
-      if (r > 240 && g > 240 && b > 240) {
-        if (a !== null) {
-          pixels[a] = 0;
+      visited[pixelIdx] = 1;
+      queue.push([x, y]);
+    };
+    
+    // Start flood fill from all edges
+    for (let x = 0; x < width; x++) {
+      markBackground(x, 0); // Top edge
+      markBackground(x, height - 1); // Bottom edge
+    }
+    for (let y = 0; y < height; y++) {
+      markBackground(0, y); // Left edge
+      markBackground(width - 1, y); // Right edge
+    }
+    
+    // Process queue
+    while (queue.length > 0) {
+      const [x, y] = queue.shift();
+      markBackground(x - 1, y);
+      markBackground(x + 1, y);
+      markBackground(x, y - 1);
+      markBackground(x, y + 1);
+    }
+    
+    // Step 2: Apply circular mask centered on content
+    // Find bounding box of non-background content
+    let minX = width, maxX = 0, minY = height, maxY = 0;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const pixelIdx = y * width + x;
+        if (!visited[pixelIdx] && !isWhiteish(x, y)) {
+          minX = Math.min(minX, x);
+          maxX = Math.max(maxX, x);
+          minY = Math.min(minY, y);
+          maxY = Math.max(maxY, y);
         }
-      } else if (a !== null) {
-        // Keep or set opaque for non-white pixels
-        pixels[a] = 255;
+      }
+    }
+    
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    const radius = Math.max(maxX - minX, maxY - minY) / 2 + 5; // Add small padding
+    const featherPixels = 3; // Feather edge to remove white halos
+    
+    // Step 3: Set alpha based on flood fill + circular mask
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = (y * width + x) * channels;
+        const pixelIdx = y * width + x;
+        const alphaIdx = idx + 3;
+        
+        if (visited[pixelIdx]) {
+          // Background pixel from flood fill
+          pixels[alphaIdx] = 0;
+        } else {
+          // Calculate distance from center for circular mask
+          const dx = x - centerX;
+          const dy = y - centerY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          if (dist > radius) {
+            // Outside circle
+            pixels[alphaIdx] = 0;
+          } else if (dist > radius - featherPixels) {
+            // Feather edge
+            const alpha = ((radius - dist) / featherPixels) * 255;
+            pixels[alphaIdx] = Math.max(0, Math.min(255, Math.floor(alpha)));
+          } else {
+            // Inside circle
+            pixels[alphaIdx] = 255;
+          }
+        }
       }
     }
     
     // Create image from processed buffer
     const transparentImage = sharp(pixels, {
       raw: {
-        width: info.width,
-        height: info.height,
-        channels: info.channels
+        width: width,
+        height: height,
+        channels: channels
       }
     });
     
-    // Trim, pad to square, and resize
-    const trimmed = await transparentImage
-      .trim({ threshold: 10 })
-      .toBuffer({ resolveWithObject: true });
-    
-    const maxDim = Math.max(trimmed.info.width, trimmed.info.height);
-    const padX = Math.floor((maxDim - trimmed.info.width) / 2);
-    const padY = Math.floor((maxDim - trimmed.info.height) / 2);
-    
-    await sharp(trimmed.data, {
-      raw: {
-        width: trimmed.info.width,
-        height: trimmed.info.height,
-        channels: trimmed.info.channels
-      }
-    })
-    .extend({
-      top: padY,
-      bottom: maxDim - trimmed.info.height - padY,
-      left: padX,
-      right: maxDim - trimmed.info.width - padX,
-      background: { r: 0, g: 0, b: 0, alpha: 0 }
-    })
-    .resize(OUTPUT_SIZE, OUTPUT_SIZE, {
-      fit: 'contain',
-      background: { r: 0, g: 0, b: 0, alpha: 0 }
-    })
-    .png({ compressionLevel: 9 })
-    .toFile(outputPath);
+    // Save with transparency (don't trim, just resize to square)
+    await transparentImage
+      .resize(OUTPUT_SIZE, OUTPUT_SIZE, {
+        fit: 'contain',
+        background: { r: 0, g: 0, b: 0, alpha: 0 }
+      })
+      .png({ compressionLevel: 9, force: true })
+      .toFile(outputPath);
     
     const stats = await fs.stat(outputPath);
     console.log(`  ✓ Saved ${name}: ${outputPath} (${(stats.size / 1024).toFixed(1)} KB)`);

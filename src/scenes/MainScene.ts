@@ -24,6 +24,8 @@ export class MainScene extends Phaser.Scene {
   
   // Rail margins for physics walls alignment
   private readonly RAIL_MARGIN = 50;
+  // Floor position at top of bottom candy bar (prevent balls from falling through)
+  private readonly FLOOR_Y = 950;
 
   constructor() {
     super({ key: 'MainScene' });
@@ -190,10 +192,11 @@ export class MainScene extends Phaser.Scene {
       restitution: 0.8
     });
     
-    // Bottom floor
-    this.matter.add.rectangle(this.gameConfig.width / 2, this.gameConfig.height - wallThickness / 2, this.gameConfig.width, wallThickness, {
+    // Bottom floor at top of candy bar (not bottom of screen)
+    this.matter.add.rectangle(this.gameConfig.width / 2, this.FLOOR_Y, this.gameConfig.width, wallThickness * 2, {
       isStatic: true,
-      restitution: 0.3
+      restitution: 0.3,
+      label: 'floor'
     });
   }
 
