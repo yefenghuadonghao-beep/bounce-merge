@@ -10,7 +10,8 @@
     "test:watch": "vitest",
     "art:atlas": "node scripts/build-character-atlas.mjs",
     "font:subset": "node scripts/subset-font.mjs",
-    "build:wechat": "tsc && node scripts/build-wechat.mjs"
+    "build:wechat": "tsc && node scripts/build-wechat.mjs",
+    "sim:wechat": "node scripts/wechat-sim.mjs"
   },
   "dependencies": {
     "phaser": "^3.80.1"
