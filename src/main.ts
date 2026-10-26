@@ -5,6 +5,7 @@ import { GameOverScene } from './scenes/GameOverScene';
 import { GameController } from './core/GameController';
 import { WebPlatform } from './platform/WebPlatform';
 import { IPlatform } from './platform/IPlatform';
+import { setPlatform } from './platform';
 import { GameConfig } from './types';
 
 import ballLevels from './config/ballLevels.json';
@@ -12,6 +13,7 @@ import levelConfigs from './config/levelConfig.json';
 import gameConfigData from './config/gameConfig.json';
 
 const platform: IPlatform = new WebPlatform();
+setPlatform(platform);
 const screenSize = platform.getScreenSize();
 const gameConfig: GameConfig = gameConfigData as GameConfig;
 
@@ -40,21 +42,18 @@ const phaserConfig: Phaser.Types.Core.GameConfig = {
 
 const game = new Phaser.Game(phaserConfig);
 
-// Expose game globally for debug purposes
-Object.assign(window, { game, gameController, gameConfig });
-
-// Check for debug parameters
-const urlParams = new URLSearchParams(window.location.search);
-const debugScene = urlParams.get('scene');
-const requestedStage = Number(urlParams.get('stage'));
-if (import.meta.env.DEV && Number.isInteger(requestedStage) && requestedStage >= 1 && requestedStage <= 8) {
-  for (let i = 1; i < requestedStage; i++) gameController.advanceLevel();
-}
-
-if (debugScene === 'upgrade') {
-  game.scene.start('UpgradeScene', { gameController, gameConfig });
+const sceneData = { gameController, gameConfig };
+if (import.meta.env.DEV) {
+  // 调试入口仅在开发构建中存在：window 全局、?stage=N 跳关、?scene=upgrade 直达升级页。
+  Object.assign(window, { game, gameController, gameConfig });
+  const urlParams = new URLSearchParams(window.location.search);
+  const requestedStage = Number(urlParams.get('stage'));
+  if (Number.isInteger(requestedStage) && requestedStage >= 1 && requestedStage <= levelConfigs.length) {
+    for (let i = 1; i < requestedStage; i++) gameController.advanceLevel();
+  }
+  game.scene.start(urlParams.get('scene') === 'upgrade' ? 'UpgradeScene' : 'MainScene', sceneData);
 } else {
-  game.scene.start('MainScene', { gameController, gameConfig });
+  game.scene.start('MainScene', sceneData);
 }
 
 export { game, platform, gameController };

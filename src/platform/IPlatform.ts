@@ -13,6 +13,9 @@ export interface IPlatform {
   playMusic(musicId: string): void;
   stopMusic(): void;
   setVolume(volume: number): void;
+  /** 音效开关，需持久化，下次启动保持玩家的选择。 */
+  isSoundEnabled(): boolean;
+  setSoundEnabled(enabled: boolean): void;
   
   // Social (stubs for mini-game APIs)
   share(title: string, imageUrl?: string): Promise<boolean>;

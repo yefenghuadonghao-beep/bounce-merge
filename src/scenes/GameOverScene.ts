@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { GameController } from '../core/GameController';
 import { GameConfig } from '../types';
-import { WebPlatform } from '../platform/WebPlatform';
+import { getPlatform } from '../platform';
 import { button, characterNames, ink, panel, paper } from '../ui/theme';
 
 export class GameOverScene extends Phaser.Scene {
@@ -47,7 +47,7 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   private async saveRecord(label: Phaser.GameObjects.Text) {
-    const platform = new WebPlatform();
+    const platform = getPlatform();
     const state = this.gameController.getGameState();
     const stored = Number(await platform.loadData('best_score'));
     const previous = Number.isFinite(stored) ? Math.max(0, stored) : 0;

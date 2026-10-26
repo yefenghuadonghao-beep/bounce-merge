@@ -6,7 +6,7 @@ import { ShotQueue } from '../core/ShotQueue';
 import { assetUrl } from '../platform/assets';
 import characterAtlas from '../config/characterAtlas.json';
 import { button, characterNames, ink, panel, paper } from '../ui/theme';
-import { WebPlatform } from '../platform/WebPlatform';
+import { getPlatform } from '../platform';
 
 interface Ball {
   body: MatterJS.BodyType;
@@ -29,7 +29,7 @@ export class MainScene extends Phaser.Scene {
   private swapsRemaining = 2;
   private shakeLabel!: Phaser.GameObjects.Text;
   private swapLabel!: Phaser.GameObjects.Text;
-  private platform = new WebPlatform();
+  private platform = getPlatform();
   private aimLine!: Phaser.GameObjects.Line;
   private aimArrow!: Phaser.GameObjects.Triangle;
   private isAiming: boolean = false;
@@ -132,13 +132,15 @@ export class MainScene extends Phaser.Scene {
     }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
     sound.on('pointerdown', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
       event.stopPropagation();
-      sound.setText(this.platform.toggleSound() ? '音效 开' : '音效 关');
+      const enabled = !this.platform.isSoundEnabled();
+      this.platform.setSoundEnabled(enabled);
+      sound.setText(enabled ? '音效 开' : '音效 关');
     });
     this.setupInput();
     this.setupCollisions();
     
-    // Debug mode: seed balls via URL param ?debug=seed
-    this.checkDebugMode();
+    // 调试：?debug=seed 铺满 1-10 级角色；仅开发构建调用，正式包不会读取 URL。
+    if (import.meta.env.DEV) this.checkDebugMode();
   }
   
   private checkDebugMode() {

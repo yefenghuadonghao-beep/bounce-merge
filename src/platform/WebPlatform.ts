@@ -3,37 +3,40 @@ import { IPlatform } from './IPlatform';
 export class WebPlatform implements IPlatform {
   private static audio?: AudioContext;
   private static volume = 0.16;
+  private static readonly SOUND_KEY = 'bouncemergegame_sound';
   private storage: Map<string, string> = new Map();
+  private soundEnabled = WebPlatform.readSoundSetting();
 
-  async saveData(key: string, value: string): Promise<void> {
-    this.storage.set(key, value);
+  private static readSoundSetting(): boolean {
     try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(`bouncemergegame_${key}`, value);
-      }
-    } catch (e) {
-      console.warn('localStorage not available', e);
+      return typeof localStorage === 'undefined' || localStorage.getItem(WebPlatform.SOUND_KEY) !== '0';
+    } catch {
+      return true;
     }
   }
 
-  async loadData(key: string): Promise<string | null> {
-    if (this.storage.has(key)) {
-      return this.storage.get(key) || null;
-    }
-    
+  // localStorage 是唯一数据源；仅在它不可用（隐私模式等）时退回内存。
+  async saveData(key: string, value: string): Promise<void> {
     try {
       if (typeof localStorage !== 'undefined') {
-        const value = localStorage.getItem(`bouncemergegame_${key}`);
-        if (value) {
-          this.storage.set(key, value);
-          return value;
-        }
+        localStorage.setItem(`bouncemergegame_${key}`, value);
+        return;
       }
     } catch (e) {
       console.warn('localStorage not available', e);
     }
-    
-    return null;
+    this.storage.set(key, value);
+  }
+
+  async loadData(key: string): Promise<string | null> {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        return localStorage.getItem(`bouncemergegame_${key}`);
+      }
+    } catch (e) {
+      console.warn('localStorage not available', e);
+    }
+    return this.storage.get(key) ?? null;
   }
 
   getScreenSize(): { width: number; height: number } {
@@ -49,7 +52,7 @@ export class WebPlatform implements IPlatform {
   }
 
   playSound(soundId: string): void {
-    if (WebPlatform.volume === 0 || typeof AudioContext === 'undefined') return;
+    if (!this.soundEnabled || WebPlatform.volume === 0 || typeof AudioContext === 'undefined') return;
     try {
       const audio = WebPlatform.audio ??= new AudioContext();
       if (audio.state === 'suspended') void audio.resume().catch(() => {});
@@ -80,13 +83,17 @@ export class WebPlatform implements IPlatform {
     }
   }
 
-  toggleSound(): boolean {
-    WebPlatform.volume = WebPlatform.volume > 0 ? 0 : 0.16;
-    return WebPlatform.volume > 0;
+  isSoundEnabled(): boolean {
+    return this.soundEnabled;
   }
 
-  isSoundEnabled(): boolean {
-    return WebPlatform.volume > 0;
+  setSoundEnabled(enabled: boolean): void {
+    this.soundEnabled = enabled;
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.setItem(WebPlatform.SOUND_KEY, enabled ? '1' : '0');
+    } catch {
+      // 无持久化存储时仅本次会话生效。
+    }
   }
 
   playMusic(musicId: string): void {
