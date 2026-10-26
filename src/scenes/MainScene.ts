@@ -4,6 +4,7 @@ import { GameConfig } from '../types';
 import { MergeCharge } from '../core/MergeCharge';
 import { ShotQueue } from '../core/ShotQueue';
 import { assetUrl } from '../platform/assets';
+import characterAtlas from '../config/characterAtlas.json';
 import { button, characterNames, ink, panel, paper } from '../ui/theme';
 import { WebPlatform } from '../platform/WebPlatform';
 
@@ -78,16 +79,8 @@ export class MainScene extends Phaser.Scene {
   }
 
   preload() {
-    // 图集按等距单元取帧，透明边距保留角色完整轮廓。
-    const frames: Record<string, { frame: { x: number; y: number; w: number; h: number } }> = {};
-    for (let i = 0; i < 10; i++) {
-      const column = i % 5;
-      const row = Math.floor(i / 5);
-      const x = Math.round(column * 1983 / 5);
-      const y = Math.round(row * 793 / 2);
-      frames[`ball_${i + 1}`] = { frame: { x, y, w: Math.round((column + 1) * 1983 / 5) - x, h: Math.round((row + 1) * 793 / 2) - y } };
-    }
-    this.load.atlas('characters', assetUrl('assets/characters/office-mochi.png'), { frames });
+    // 帧数据由 scripts/build-character-atlas.mjs 生成：每帧为贴合角色轮廓的正方形，显示尺寸与碰撞圆一致。
+    this.load.atlas('characters', assetUrl('assets/characters/office-mochi.png'), characterAtlas);
   }
 
   create() {
