@@ -33,7 +33,6 @@ const phaserConfig: Phaser.Types.Core.GameConfig = {
       debug: false
     }
   },
-  scene: [MainScene, UpgradeScene, GameOverScene],
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH
@@ -41,6 +40,10 @@ const phaserConfig: Phaser.Types.Core.GameConfig = {
 };
 
 const game = new Phaser.Game(phaserConfig);
+// 手动注册且不自动启动：放进 config.scene 时第一个场景会在没有 data 的情况下先启动。
+game.scene.add('MainScene', MainScene, false);
+game.scene.add('UpgradeScene', UpgradeScene, false);
+game.scene.add('GameOverScene', GameOverScene, false);
 
 const sceneData = { gameController, gameConfig };
 if (import.meta.env.DEV) {
