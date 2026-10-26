@@ -6,6 +6,7 @@ import { ShotQueue } from '../core/ShotQueue';
 import { assetUrl } from '../platform/assets';
 import characterAtlas from '../config/characterAtlas.json';
 import { button, characterNames, ink, panel, paper, FONT_FAMILY } from '../ui/theme';
+import { setupHiDpi } from '../ui/hidpi';
 import { getPlatform } from '../platform';
 
 interface Ball {
@@ -84,6 +85,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   create() {
+    setupHiDpi(this);
     this.matter.world.setBounds(0, 0, this.gameConfig.width, this.gameConfig.height);
     this.matter.world.setGravity(0, this.gameConfig.physics.gravity);
 
@@ -336,7 +338,7 @@ export class MainScene extends Phaser.Scene {
 
   private setupInput() {
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.y < 210 || pointer.y > 1100) return;
+      if (pointer.worldY < 210 || pointer.worldY > 1100) return;
       if (this.canShoot && !this.resolving && this.gameController.getGameState().shotsRemaining > 0) {
         this.isAiming = true;
         this.updateAim(pointer);
@@ -351,7 +353,7 @@ export class MainScene extends Phaser.Scene {
 
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
       if (!this.isAiming) return;
-      if (pointer.y < 210 || pointer.y > 1100) {
+      if (pointer.worldY < 210 || pointer.worldY > 1100) {
         this.isAiming = false;
         this.aimLine.setVisible(false);
         this.aimArrow.setVisible(false);
@@ -371,7 +373,7 @@ export class MainScene extends Phaser.Scene {
     const startY = this.gameConfig.launcher.startY;
     
     // 只允许向下发射，避免球飞进顶部 HUD。
-    this.aimAngle = Phaser.Math.Clamp(Math.atan2(Math.max(1, pointer.y - startY), pointer.x - startX), 0.2, Math.PI - 0.2);
+    this.aimAngle = Phaser.Math.Clamp(Math.atan2(Math.max(1, pointer.worldY - startY), pointer.worldX - startX), 0.2, Math.PI - 0.2);
     
     const endX = startX + Math.cos(this.aimAngle) * this.gameConfig.launcher.aimLineLength;
     const endY = startY + Math.sin(this.aimAngle) * this.gameConfig.launcher.aimLineLength;

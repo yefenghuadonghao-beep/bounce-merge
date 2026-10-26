@@ -63,7 +63,12 @@ export class WebPlatform implements IPlatform {
   }
 
   getDevicePixelRatio(): number {
-    return 1;
+    return typeof window !== 'undefined' && window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
+  }
+
+  getViewportSize(): { width: number; height: number } {
+    if (typeof window === 'undefined') return this.getScreenSize();
+    return { width: window.innerWidth, height: window.innerHeight };
   }
 
   playSound(soundId: string): void {

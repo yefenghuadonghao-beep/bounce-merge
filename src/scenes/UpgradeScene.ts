@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GameController } from '../core/GameController';
 import { Upgrade, GameConfig } from '../types';
 import { button, characterNames, ink, panel, paper, FONT_FAMILY } from '../ui/theme';
+import { setupHiDpi } from '../ui/hidpi';
 import upgradesData from '../config/upgrades.json';
 
 const upgrades = upgradesData as Upgrade[];
@@ -22,6 +23,7 @@ export class UpgradeScene extends Phaser.Scene {
   }
 
   create() {
+    setupHiDpi(this);
     this.input.enabled = true;
     const state = this.gameController.getGameState();
     paper(this);

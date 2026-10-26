@@ -14,6 +14,8 @@ export interface IPlatform {
   getScreenSize(): { width: number; height: number };
   getSafeArea(): { top: number; bottom: number; left: number; right: number };
   getDevicePixelRatio(): number;
+  /** 可用于显示游戏的窗口大小（CSS 像素 / 小游戏逻辑像素），用来算高清渲染倍率。 */
+  getViewportSize(): { width: number; height: number };
   
   // Audio (stubs for now, to be implemented)
   playSound(soundId: string): void;

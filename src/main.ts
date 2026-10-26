@@ -8,6 +8,8 @@ import { IPlatform } from './platform/IPlatform';
 import { setPlatform } from './platform';
 import { GameConfig } from './types';
 import { FONT_FACES, FONT_NAME } from './ui/theme';
+import { setRenderScale } from './ui/hidpi';
+import { computeRenderScale } from './core/renderScale';
 
 import ballLevels from './config/ballLevels.json';
 import levelConfigs from './config/levelConfig.json';
@@ -16,14 +18,17 @@ import gameConfigData from './config/gameConfig.json';
 const platform: IPlatform = new WebPlatform();
 setPlatform(platform);
 const screenSize = platform.getScreenSize();
+// 画布像素按高清倍率放大，逻辑坐标仍是 screenSize（各场景的主相机同倍缩放）。
+const renderScale = computeRenderScale(platform.getDevicePixelRatio(), platform.getViewportSize(), screenSize);
+setRenderScale(renderScale);
 const gameConfig: GameConfig = gameConfigData as GameConfig;
 
 const gameController = new GameController(ballLevels, levelConfigs, gameConfig);
 
 const phaserConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
-  width: screenSize.width,
-  height: screenSize.height,
+  width: Math.round(screenSize.width * renderScale),
+  height: Math.round(screenSize.height * renderScale),
   parent: 'game-container',
   backgroundColor: '#1a1a2e',
   physics: {
@@ -57,7 +62,7 @@ async function boot() {
   const sceneData = { gameController, gameConfig };
   if (import.meta.env.DEV) {
     // 调试入口仅在开发构建中存在：window 全局、?stage=N 跳关、?scene=upgrade 直达升级页。
-    Object.assign(window, { game, gameController, gameConfig });
+    Object.assign(window, { game, gameController, gameConfig, renderScale });
     const urlParams = new URLSearchParams(window.location.search);
     const requestedStage = Number(urlParams.get('stage'));
     if (Number.isInteger(requestedStage) && requestedStage >= 1 && requestedStage <= levelConfigs.length) {

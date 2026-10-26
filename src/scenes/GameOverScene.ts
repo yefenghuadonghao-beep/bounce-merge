@@ -3,6 +3,7 @@ import { GameController } from '../core/GameController';
 import { GameConfig } from '../types';
 import { getPlatform } from '../platform';
 import { button, characterNames, ink, panel, paper, FONT_FAMILY } from '../ui/theme';
+import { setupHiDpi } from '../ui/hidpi';
 
 export class GameOverScene extends Phaser.Scene {
   private gameController!: GameController;
@@ -22,6 +23,7 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   create() {
+    setupHiDpi(this);
     const state = this.gameController.getGameState();
     const summary = this.gameController.getRunSummary();
     paper(this);
