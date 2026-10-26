@@ -1,4 +1,5 @@
-import { IPlatform } from './IPlatform';
+import { FontFaceSpec, IPlatform } from './IPlatform';
+import { assetUrl } from './assets';
 
 export class WebPlatform implements IPlatform {
   private static audio?: AudioContext;
@@ -37,6 +38,20 @@ export class WebPlatform implements IPlatform {
       console.warn('localStorage not available', e);
     }
     return this.storage.get(key) ?? null;
+  }
+
+  async loadFont(family: string, faces: readonly FontFaceSpec[]): Promise<string | null> {
+    if (typeof FontFace === 'undefined' || typeof document === 'undefined' || !document.fonts) return null;
+    try {
+      const loaded = await Promise.all(faces.map((f) =>
+        new FontFace(family, `url(${assetUrl(`assets/fonts/${f.file}.woff2`)}) format('woff2')`, { weight: f.weight, display: 'block' }).load()
+      ));
+      for (const face of loaded) document.fonts.add(face);
+      return family;
+    } catch (e) {
+      console.warn('font load failed, using system fallback', e);
+      return null;
+    }
   }
 
   getScreenSize(): { width: number; height: number } {

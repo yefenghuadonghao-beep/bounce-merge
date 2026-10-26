@@ -5,7 +5,7 @@ import { MergeCharge } from '../core/MergeCharge';
 import { ShotQueue } from '../core/ShotQueue';
 import { assetUrl } from '../platform/assets';
 import characterAtlas from '../config/characterAtlas.json';
-import { button, characterNames, ink, panel, paper } from '../ui/theme';
+import { button, characterNames, ink, panel, paper, FONT_FAMILY } from '../ui/theme';
 import { getPlatform } from '../platform';
 
 interface Ball {
@@ -89,25 +89,25 @@ export class MainScene extends Phaser.Scene {
 
     paper(this);
     panel(this, 45, 220, 630, 880, 0xfffcf2);
-    this.add.text(82, 246, '第一章 · 打工日常', { fontSize: '23px', color: ink, fontStyle: 'bold' });
+    this.add.text(82, 246, '第一章 · 打工日常', { fontFamily: FONT_FAMILY, fontSize: '23px', color: ink, fontStyle: 'bold' });
     this.add.text(360, 800, this.gameController.getLevelConfig().title ?? '碰一碰就下班', {
-      fontSize: '34px', color: '#d5cbb9', align: 'center', lineSpacing: 16
+      fontFamily: FONT_FAMILY, fontSize: '34px', color: '#d5cbb9', align: 'center', lineSpacing: 16
     }).setOrigin(0.5);
-    this.add.text(360, 930, '同款相碰升级 · 用完发射前达成目标', { fontSize: '21px', color: '#c1b49e' }).setOrigin(0.5);
+    this.add.text(360, 930, '同款相碰升级 · 用完发射前达成目标', { fontFamily: FONT_FAMILY, fontSize: '21px', color: '#c1b49e' }).setOrigin(0.5);
     this.createPegBoard();
     this.createUI();
     this.createAimingLine();
     this.matchRings = this.add.graphics().setDepth(2);
     this.chargeBar = this.add.graphics();
     this.comboBar = this.add.graphics().setDepth(11);
-    this.uiTexts.charge = this.add.text(360, 340, '', { fontSize: '19px', color: ink }).setOrigin(0.5);
+    this.uiTexts.charge = this.add.text(360, 340, '', { fontFamily: FONT_FAMILY, fontSize: '19px', color: ink }).setOrigin(0.5);
 
     const { startX, startY } = this.gameConfig.launcher;
     this.add.circle(startX, startY, 42, 0xffffff, 0.65).setStrokeStyle(3, 0x49392d);
     this.launcherPreview = this.add.image(startX, startY, 'characters', `ball_${this.shotQueue.peek()[0]}`).setDisplaySize(56, 56);
     panel(this, 24, 1105, 672, 160);
     this.uiTexts.hint = this.add.text(360, 1220, '按住瞄准，松开发射 · 不用等球停下', {
-      fontSize: '23px', color: ink
+      fontFamily: FONT_FAMILY, fontSize: '23px', color: ink
     }).setOrigin(0.5);
     this.shakeLabel = button(this, 190, 1150, 280, '抱团取暖 ×1', () => this.shakeBoard()).label;
     this.swapLabel = button(this, 530, 1150, 280, '换个搭子 ×2', () => this.swapBall()).label;
@@ -119,7 +119,7 @@ export class MainScene extends Phaser.Scene {
     }
     this.uiTexts.hint.setText(stage.hint ?? '按住瞄准，松开发射');
     this.updateUI();
-    const retry = this.add.text(82, 287, '重试本关', { fontSize: '20px', color: ink, backgroundColor: '#eee6d5', padding: { x: 8, y: 6 } }).setInteractive({ useHandCursor: true });
+    const retry = this.add.text(82, 287, '重试本关', { fontFamily: FONT_FAMILY, fontSize: '20px', color: ink, backgroundColor: '#eee6d5', padding: { x: 8, y: 6 } }).setInteractive({ useHandCursor: true });
     retry.on('pointerdown', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
       event.stopPropagation();
       if (this.resolving) return;
@@ -128,7 +128,7 @@ export class MainScene extends Phaser.Scene {
       this.scene.restart({ gameController: this.gameController, gameConfig: this.gameConfig });
     });
     const sound = this.add.text(650, 244, this.platform.isSoundEnabled() ? '音效 开' : '音效 关', {
-      fontSize: '21px', color: ink, backgroundColor: '#fff8ef', padding: { x: 12, y: 10 }
+      fontFamily: FONT_FAMILY, fontSize: '21px', color: ink, backgroundColor: '#fff8ef', padding: { x: 12, y: 10 }
     }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
     sound.on('pointerdown', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
       event.stopPropagation();
@@ -255,17 +255,17 @@ export class MainScene extends Phaser.Scene {
 
   private createUI() {
     panel(this, 24, 20, 672, 185);
-    this.uiTexts.level = this.add.text(48, 38, '', { fontSize: '23px', color: ink, fontStyle: 'bold' });
-    this.uiTexts.score = this.add.text(666, 38, '', { fontSize: '22px', color: ink }).setOrigin(1, 0);
+    this.uiTexts.level = this.add.text(48, 38, '', { fontFamily: FONT_FAMILY, fontSize: '23px', color: ink, fontStyle: 'bold' });
+    this.uiTexts.score = this.add.text(666, 38, '', { fontFamily: FONT_FAMILY, fontSize: '22px', color: ink }).setOrigin(1, 0);
     const target = this.gameController.getLevelConfig().targetBallLevel ?? 3;
     this.add.image(79, 114, 'characters', `ball_${target}`).setDisplaySize(64, 64);
-    this.uiTexts.goal = this.add.text(126, 86, `合出${characterNames[target]}`, { fontSize: '27px', color: ink, fontStyle: 'bold' });
-    this.uiTexts.progress = this.add.text(126, 130, '', { fontSize: '20px', color: '#8b7c64' });
-    this.uiTexts.shots = this.add.text(48, 168, '', { fontSize: '21px', color: ink });
-    this.add.text(606, 78, '下一位', { fontSize: '18px', color: '#8b7c64' }).setOrigin(0.5);
+    this.uiTexts.goal = this.add.text(126, 86, `合出${characterNames[target]}`, { fontFamily: FONT_FAMILY, fontSize: '27px', color: ink, fontStyle: 'bold' });
+    this.uiTexts.progress = this.add.text(126, 130, '', { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#8b7c64' });
+    this.uiTexts.shots = this.add.text(48, 168, '', { fontFamily: FONT_FAMILY, fontSize: '21px', color: ink });
+    this.add.text(606, 78, '下一位', { fontFamily: FONT_FAMILY, fontSize: '18px', color: '#8b7c64' }).setOrigin(0.5);
     this.nextPreview = this.add.image(606, 129, 'characters', `ball_${this.shotQueue.peek()[1]}`).setDisplaySize(50, 50);
     this.comboText = this.add.text(360, 404, '', {
-      fontSize: '42px', color: '#fff7cd', fontStyle: 'bold', stroke: '#785d42', strokeThickness: 5
+      fontFamily: FONT_FAMILY, fontSize: '42px', color: '#fff7cd', fontStyle: 'bold', stroke: '#785d42', strokeThickness: 5
     }).setOrigin(0.5).setDepth(10).setVisible(false);
   }
 
@@ -456,7 +456,7 @@ export class MainScene extends Phaser.Scene {
     if (this.charge.add(state.combo)) {
       this.shakesRemaining++;
       const reward = this.add.text(360, 460, '充满了！抱团取暖 +1', {
-        fontSize: '30px', color: '#547044', backgroundColor: '#fff9e7', padding: { x: 16, y: 10 }
+        fontFamily: FONT_FAMILY, fontSize: '30px', color: '#547044', backgroundColor: '#fff9e7', padding: { x: 16, y: 10 }
       }).setOrigin(0.5).setDepth(15);
       this.tweens.add({ targets: reward, y: 420, alpha: 0, delay: 850, duration: 450, onComplete: () => reward.destroy() });
     }
@@ -517,7 +517,7 @@ export class MainScene extends Phaser.Scene {
   private showScorePopup(x: number, y: number, score: number, level: number) {
     const lines = ['', '', '脑子放空了', '我没事，真的', '咖啡续命！', '卡打了，人走了', '正在加载灵魂', '摸鱼使我快乐', '躺平也很可爱', '先溜为敬！', '准点下班！'];
     const text = this.add.text(Phaser.Math.Clamp(x, 150, 570), y, `${lines[level]}\n+${score}`, {
-      fontSize: '24px',
+      fontFamily: FONT_FAMILY, fontSize: '24px',
       color: '#49392d',
       align: 'center', stroke: '#fff9e7', strokeThickness: 5,
       fontStyle: 'bold'
@@ -543,9 +543,9 @@ export class MainScene extends Phaser.Scene {
     const target = this.gameController.getLevelConfig().targetBallLevel ?? state.highestBallLevel;
     const shade = this.add.rectangle(360, 660, 620, 870, 0xfffcf2, 0.9).setDepth(20);
     const hero = this.add.image(360, 610, 'characters', `ball_${target}`).setDisplaySize(190, 190).setDepth(21);
-    this.add.text(360, 455, '坏情绪，碰掉了！', { fontSize: '42px', color: ink, fontStyle: 'bold' }).setOrigin(0.5).setDepth(21);
+    this.add.text(360, 455, '坏情绪，碰掉了！', { fontFamily: FONT_FAMILY, fontSize: '42px', color: ink, fontStyle: 'bold' }).setOrigin(0.5).setDepth(21);
     this.add.text(360, 775, `${characterNames[target]} 到岗\n本轮最高 ${this.gameController.getRunSummary().bestCombo} 连合`, {
-      fontSize: '28px', color: ink, align: 'center', lineSpacing: 16
+      fontFamily: FONT_FAMILY, fontSize: '28px', color: ink, align: 'center', lineSpacing: 16
     }).setOrigin(0.5).setDepth(21);
     this.tweens.add({ targets: hero, y: 580, duration: 450, yoyo: true, repeat: 1, ease: 'Sine.InOut' });
     this.tweens.add({ targets: shade, alpha: { from: 0, to: 1 }, duration: 200 });

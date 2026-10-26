@@ -3,6 +3,15 @@ import Phaser from 'phaser';
 export const characterNames = ['', '困困猫', '放空豚', '暴躁鼠', '续命蛙', '打卡汪', '发呆兔', '摸鱼熊', '躺平鹅', '溜了狐', '下班大王'];
 export const ink = '#49392d';
 
+// 全部文字统一用圆体子集（Resource Han Rounded CN，SIL OFL 1.1），系统字体兜底。
+// 字体文件由 npm run font:subset 生成，启动时经平台层 loadFont 加载完成后才创建游戏。
+export const FONT_NAME = 'MochiRounded';
+export const FONT_FAMILY = `'${FONT_NAME}', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif`;
+export const FONT_FACES = [
+  { weight: '400', file: 'mochi-rounded-regular' },
+  { weight: '700', file: 'mochi-rounded-bold' }
+] as const;
+
 export function panel(scene: Phaser.Scene, x: number, y: number, width: number, height: number, color = 0xfffcf2) {
   const graphics = scene.add.graphics();
   graphics.fillStyle(0x49392d, 0.16).fillRoundedRect(x, y + 6, width, height, 24);
@@ -16,7 +25,7 @@ export function button(scene: Phaser.Scene, x: number, y: number, width: number,
   const bg = scene.add.graphics();
   bg.fillStyle(0x49392d).fillRoundedRect(-width / 2, -35, width, 76, 22);
   bg.fillStyle(0xee976e).fillRoundedRect(-width / 2, -40, width, 76, 22);
-  const label = scene.add.text(0, -3, title, { fontSize: '25px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
+  const label = scene.add.text(0, -3, title, { fontFamily: FONT_FAMILY, fontSize: '25px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
   container.add([bg, label]).setSize(width, 80).setInteractive({ useHandCursor: true });
   container.on('pointerdown', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
     event.stopPropagation();

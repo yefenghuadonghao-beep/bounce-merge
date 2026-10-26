@@ -39,3 +39,6 @@ coverage/
 # Temporary
 *.tmp
 .cache/
+
+# Font sources (large; see art/fonts/README.md)
+art/fonts/source/

@@ -7,6 +7,7 @@ import { WebPlatform } from './platform/WebPlatform';
 import { IPlatform } from './platform/IPlatform';
 import { setPlatform } from './platform';
 import { GameConfig } from './types';
+import { FONT_FACES, FONT_NAME } from './ui/theme';
 
 import ballLevels from './config/ballLevels.json';
 import levelConfigs from './config/levelConfig.json';
@@ -39,24 +40,35 @@ const phaserConfig: Phaser.Types.Core.GameConfig = {
   }
 };
 
-const game = new Phaser.Game(phaserConfig);
-// 手动注册且不自动启动：放进 config.scene 时第一个场景会在没有 data 的情况下先启动。
-game.scene.add('MainScene', MainScene, false);
-game.scene.add('UpgradeScene', UpgradeScene, false);
-game.scene.add('GameOverScene', GameOverScene, false);
+// 字体就绪后再创建游戏，避免首帧先用 Courier/系统字体排版再跳变；最多等 3 秒，失败时用系统字体兜底。
+const FONT_TIMEOUT_MS = 3000;
+async function boot() {
+  await Promise.race([
+    platform.loadFont(FONT_NAME, FONT_FACES),
+    new Promise((resolve) => setTimeout(resolve, FONT_TIMEOUT_MS))
+  ]);
 
-const sceneData = { gameController, gameConfig };
-if (import.meta.env.DEV) {
-  // 调试入口仅在开发构建中存在：window 全局、?stage=N 跳关、?scene=upgrade 直达升级页。
-  Object.assign(window, { game, gameController, gameConfig });
-  const urlParams = new URLSearchParams(window.location.search);
-  const requestedStage = Number(urlParams.get('stage'));
-  if (Number.isInteger(requestedStage) && requestedStage >= 1 && requestedStage <= levelConfigs.length) {
-    for (let i = 1; i < requestedStage; i++) gameController.advanceLevel();
+  const game = new Phaser.Game(phaserConfig);
+  // 手动注册且不自动启动：放进 config.scene 时第一个场景会在没有 data 的情况下先启动。
+  game.scene.add('MainScene', MainScene, false);
+  game.scene.add('UpgradeScene', UpgradeScene, false);
+  game.scene.add('GameOverScene', GameOverScene, false);
+
+  const sceneData = { gameController, gameConfig };
+  if (import.meta.env.DEV) {
+    // 调试入口仅在开发构建中存在：window 全局、?stage=N 跳关、?scene=upgrade 直达升级页。
+    Object.assign(window, { game, gameController, gameConfig });
+    const urlParams = new URLSearchParams(window.location.search);
+    const requestedStage = Number(urlParams.get('stage'));
+    if (Number.isInteger(requestedStage) && requestedStage >= 1 && requestedStage <= levelConfigs.length) {
+      for (let i = 1; i < requestedStage; i++) gameController.advanceLevel();
+    }
+    game.scene.start(urlParams.get('scene') === 'upgrade' ? 'UpgradeScene' : 'MainScene', sceneData);
+  } else {
+    game.scene.start('MainScene', sceneData);
   }
-  game.scene.start(urlParams.get('scene') === 'upgrade' ? 'UpgradeScene' : 'MainScene', sceneData);
-} else {
-  game.scene.start('MainScene', sceneData);
+  return game;
 }
 
-export { game, platform, gameController };
+export const gameReady = boot();
+export { platform, gameController };

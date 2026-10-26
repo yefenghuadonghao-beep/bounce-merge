@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { GameController } from '../core/GameController';
 import { GameConfig } from '../types';
 import { getPlatform } from '../platform';
-import { button, characterNames, ink, panel, paper } from '../ui/theme';
+import { button, characterNames, ink, panel, paper, FONT_FAMILY } from '../ui/theme';
 
 export class GameOverScene extends Phaser.Scene {
   private gameController!: GameController;
@@ -25,15 +25,15 @@ export class GameOverScene extends Phaser.Scene {
     const state = this.gameController.getGameState();
     const summary = this.gameController.getRunSummary();
     paper(this);
-    this.add.text(360, 160, this.won ? '第一章，全员下班！' : '今天也辛苦啦', { fontSize: '43px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
-    this.add.text(360, 225, `情绪释放到第 ${state.currentLevel} 关`, { fontSize: '27px', color: '#8b7c64' }).setOrigin(0.5);
+    this.add.text(360, 160, this.won ? '第一章，全员下班！' : '今天也辛苦啦', { fontFamily: FONT_FAMILY, fontSize: '43px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(360, 225, `情绪释放到第 ${state.currentLevel} 关`, { fontFamily: FONT_FAMILY, fontSize: '27px', color: '#8b7c64' }).setOrigin(0.5);
     panel(this, 70, 305, 580, 400);
-    this.add.text(360, 355, '今日快乐值', { fontSize: '24px', color: '#8b7c64' }).setOrigin(0.5);
-    this.add.text(360, 430, String(state.score), { fontSize: '74px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
-    const record = this.add.text(360, 510, '', { fontSize: '23px', color: '#8b7c64' }).setOrigin(0.5);
-    this.add.text(360, 585, `本轮最高：${characterNames[summary.highest]}`, { fontSize: '27px', color: ink }).setOrigin(0.5);
+    this.add.text(360, 355, '今日快乐值', { fontFamily: FONT_FAMILY, fontSize: '24px', color: '#8b7c64' }).setOrigin(0.5);
+    this.add.text(360, 430, String(state.score), { fontFamily: FONT_FAMILY, fontSize: '74px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
+    const record = this.add.text(360, 510, '', { fontFamily: FONT_FAMILY, fontSize: '23px', color: '#8b7c64' }).setOrigin(0.5);
+    this.add.text(360, 585, `本轮最高：${characterNames[summary.highest]}`, { fontFamily: FONT_FAMILY, fontSize: '27px', color: ink }).setOrigin(0.5);
     this.add.text(360, 760, `最高 ${summary.bestCombo} 连合 · 碰掉 ${summary.merges} 次坏情绪\n下一次，试试让连合不断档！`, {
-      fontSize: '24px', color: '#8b7c64', align: 'center', lineSpacing: 14
+      fontFamily: FONT_FAMILY, fontSize: '24px', color: '#8b7c64', align: 'center', lineSpacing: 14
     }).setOrigin(0.5);
     if (this.textures.exists('characters')) this.add.image(360, 1110, 'characters', `ball_${summary.highest}`).setDisplaySize(135, 135);
     button(this, 360, 930, 440, this.won ? '再挑战第一章' : '重试本关', () => {
