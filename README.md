@@ -51,6 +51,13 @@ npm run build
 
 构建产物在 `dist/` 目录，可部署到任何静态服务器。
 
+正式构建使用精简版 Phaser（`src/vendor/phaser-custom.js`，经 vite alias 替换 `phaser`），
+只打包 WebGL/Canvas 渲染、场景、相机、输入、补间、计时、Matter 物理和游戏用到的 GameObject，
+去掉 Arcade 物理、Tilemap、Phaser 声音、粒子等：Phaser chunk 从 1,478.57 kB（gzip 339.68 kB）
+降到 877.00 kB（gzip 211.89 kB）。开发模式和单元测试仍使用完整版 Phaser，
+所以**新用到某个 Phaser 功能时要在 `phaser-custom.js` 里补上**，并用 `npm run build && npx vite preview`
+确认；`src/vendor/__tests__/phaserCustom.test.ts` 会检查所有 `add.xxx` 和运行时 `Phaser.*` 引用是否都在精简版里。
+
 ### 运行测试
 
 ```bash
