@@ -48,3 +48,14 @@ describe('authored shot sequences', () => {
     expect(Array.from({ length: 4 }, () => queue.take())).toEqual([1, 2, 3, 2]);
   });
 });
+
+describe('ShotQueue.at', () => {
+  it('与 peek 一致且随 take/swap 更新', () => {
+    const queue = new ShotQueue(1, 5, () => 0.3, [1, 2, 3]);
+    expect([queue.at(0), queue.at(1)]).toEqual(queue.peek().slice(0, 2));
+    queue.swap();
+    expect([queue.at(0), queue.at(1)]).toEqual(queue.peek().slice(0, 2));
+    queue.take();
+    expect([queue.at(0), queue.at(1), queue.at(2)]).toEqual([...queue.peek()]);
+  });
+});

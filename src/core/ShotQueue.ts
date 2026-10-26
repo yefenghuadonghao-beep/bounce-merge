@@ -12,6 +12,11 @@ export class ShotQueue {
     return [...this.queue];
   }
 
+  /** 不分配数组的读取，供每帧调用：0 为当前球，1 为下一球。 */
+  at(index: number): number {
+    return this.queue[index];
+  }
+
   take(): number {
     const level = this.queue.shift()!;
     this.queue.push(this.draw());

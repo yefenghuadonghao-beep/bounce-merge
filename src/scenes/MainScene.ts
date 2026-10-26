@@ -298,7 +298,7 @@ export class MainScene extends Phaser.Scene {
 
   private swapBall() {
     if (this.resolving || this.swapsRemaining <= 0 || !this.canShoot) return;
-    if (this.shotQueue.peek()[0] === this.shotQueue.peek()[1]) {
+    if (this.shotQueue.at(0) === this.shotQueue.at(1)) {
       this.uiTexts.hint.setText('这两位一样，留着机会给下一次吧');
       return;
     }
@@ -561,12 +561,12 @@ export class MainScene extends Phaser.Scene {
     }
     this.matchRings?.clear();
     if (this.isAiming) {
-      const next = this.shotQueue.peek()[0];
+      const next = this.shotQueue.at(0);
+      const ringRadius = (this.gameController.getBallConfig(next)?.radius ?? 26) * state.ballSizeMultiplier + 7;
       for (let i = 0, length = this.balls.length; i < length; i++) {
         const ball = this.balls[i];
         if (ball.level !== next) continue;
-        const radius = (this.gameController.getBallConfig(next)?.radius ?? 26) * state.ballSizeMultiplier;
-        this.matchRings?.lineStyle(3, 0xd89458, 0.8).strokeCircle(ball.sprite.x, ball.sprite.y, radius + 7);
+        this.matchRings?.lineStyle(3, 0xd89458, 0.8).strokeCircle(ball.sprite.x, ball.sprite.y, ringRadius);
       }
     }
 
