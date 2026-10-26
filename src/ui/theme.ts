@@ -6,7 +6,13 @@ export const ink = '#49392d';
 // 全部文字统一用圆体子集（Resource Han Rounded CN，SIL OFL 1.1），系统字体兜底。
 // 字体文件由 npm run font:subset 生成，启动时经平台层 loadFont 加载完成后才创建游戏。
 export const FONT_NAME = 'MochiRounded';
-export const FONT_FAMILY = `'${FONT_NAME}', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif`;
+const FALLBACK_FONTS = `'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif`;
+// live binding：小游戏里 wx.loadFont 返回的字体名由字体文件决定（不一定是 FONT_NAME），
+// 启动时用 setFontFamily 换成实际名字；场景都在 create() 里读取，拿到的是更新后的值。
+export let FONT_FAMILY = `'${FONT_NAME}', ${FALLBACK_FONTS}`;
+export function setFontFamily(primary: string): void {
+  FONT_FAMILY = `'${primary.replace(/'/g, '')}', ${FALLBACK_FONTS}`;
+}
 export const FONT_FACES = [
   { weight: '400', file: 'mochi-rounded-regular' },
   { weight: '700', file: 'mochi-rounded-bold' }

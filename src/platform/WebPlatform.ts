@@ -1,5 +1,6 @@
 import { FontFaceSpec, IPlatform } from './IPlatform';
 import { assetUrl } from './assets';
+import { playSynth, SynthAudioContext } from './synth';
 
 export class WebPlatform implements IPlatform {
   private static audio?: AudioContext;
@@ -54,6 +55,10 @@ export class WebPlatform implements IPlatform {
     }
   }
 
+  onVisibilityChange(_handler: (visible: boolean) => void): void {
+    // 网页里 Phaser 自己监听 document.visibilitychange 暂停/恢复主循环，这里不用重复处理。
+  }
+
   getScreenSize(): { width: number; height: number } {
     return { width: 720, height: 1280 };
   }
@@ -75,29 +80,7 @@ export class WebPlatform implements IPlatform {
     if (!this.soundEnabled || WebPlatform.volume === 0 || typeof AudioContext === 'undefined') return;
     try {
       const audio = WebPlatform.audio ??= new AudioContext();
-      if (audio.state === 'suspended') void audio.resume().catch(() => {});
-      const parts = soundId.split('_');
-      const level = Number(parts[1]) || 1;
-      const combo = Math.min(6, Number(parts[2]) || 1);
-      const merge = soundId.startsWith('merge');
-      const frequency = merge ? 330 * Math.pow(1.12, level) * Math.pow(1.06, combo - 1) : 240;
-      // 连合逐渐升调，高连合使用短琶音，音量按音符数收敛。
-      const notes = merge && combo >= 3 ? [1, 1.25, 1.5] : [1];
-      for (let i = 0; i < notes.length; i++) {
-        const start = audio.currentTime + i * 0.055;
-        const oscillator = audio.createOscillator();
-        const gain = audio.createGain();
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(frequency * notes[i], start);
-        oscillator.frequency.exponentialRampToValueAtTime(frequency * notes[i] * 1.25, start + 0.12);
-        gain.gain.setValueAtTime(0.001, audio.currentTime);
-        gain.gain.setValueAtTime(WebPlatform.volume / notes.length, start);
-        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.18);
-        oscillator.connect(gain).connect(audio.destination);
-        oscillator.start(start);
-        oscillator.stop(start + 0.2);
-        oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
-      }
+      playSynth(audio as unknown as SynthAudioContext, soundId, WebPlatform.volume);
     } catch {
       // 静音或不支持音频的环境仍可正常游玩。
     }

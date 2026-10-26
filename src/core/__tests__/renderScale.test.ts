@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeRenderScale } from '../renderScale';
+import { computeFillLayout, computeRenderScale } from '../renderScale';
 
 const design = { width: 720, height: 1280 };
 
@@ -28,5 +28,30 @@ describe('computeRenderScale', () => {
   it('异常输入退回 1 倍', () => {
     expect(computeRenderScale(NaN, { width: 0, height: 0 }, design)).toBe(1);
     expect(computeRenderScale(0, { width: 390, height: 844 }, design)).toBe(1);
+  });
+});
+
+describe('computeFillLayout（小游戏铺满屏幕）', () => {
+  it('iPhone 390×844 @3x：画布 1170×2532，设计内容按宽度放满', () => {
+    const layout = computeFillLayout(3, { width: 390, height: 844 }, design);
+    expect(layout).toEqual({ canvasWidth: 1170, canvasHeight: 2532, zoom: 1170 / 720 });
+    // 高度方向多出来的像素是上下留边
+    expect(1280 * layout.zoom).toBeLessThan(layout.canvasHeight);
+  });
+
+  it('设计内容放大倍数不超过上限', () => {
+    const layout = computeFillLayout(4, { width: 1440, height: 2560 }, design);
+    expect(layout.zoom).toBe(3);
+    expect(layout).toMatchObject({ canvasWidth: 2160, canvasHeight: 3840 });
+  });
+
+  it('宽屏（平板横放）按高度放满', () => {
+    const layout = computeFillLayout(2, { width: 1024, height: 768 }, design);
+    expect(layout.canvasWidth).toBe(2048);
+    expect(layout.zoom).toBeCloseTo(1536 / 1280);
+  });
+
+  it('异常输入退回设计尺寸 1 倍', () => {
+    expect(computeFillLayout(NaN, { width: 0, height: 0 }, design)).toEqual({ canvasWidth: 720, canvasHeight: 1280, zoom: 1 });
   });
 });

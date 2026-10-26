@@ -42,3 +42,15 @@ describe('统一字体', () => {
     expect(needed.filter((ch) => !shipped.has(ch))).toEqual([]);
   });
 });
+
+describe('setFontFamily', () => {
+  it('换成平台返回的字体名，并保留系统字体兜底', async () => {
+    const theme = await import('../theme');
+    const original = theme.FONT_FAMILY;
+    theme.setFontFamily('Resource Han Rounded CN');
+    expect(theme.FONT_FAMILY.startsWith("'Resource Han Rounded CN', ")).toBe(true);
+    expect(theme.FONT_FAMILY).toContain('sans-serif');
+    theme.setFontFamily(theme.FONT_NAME);
+    expect(theme.FONT_FAMILY).toBe(original);
+  });
+});

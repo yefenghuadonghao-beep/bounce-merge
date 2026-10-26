@@ -14,3 +14,27 @@ export function computeRenderScale(devicePixelRatio: number, viewport: Size, des
   const needed = Math.ceil(fit * dpr * 4 - 1e-9) / 4;
   return Math.min(maxScale, Math.max(1, needed));
 }
+
+export interface FillLayout {
+  /** 画布像素尺寸（铺满整个窗口，长宽比 = 窗口长宽比）。 */
+  canvasWidth: number;
+  canvasHeight: number;
+  /** 主相机缩放：设计分辨率按 contain 放进画布，多出来的部分是上下或左右留边。 */
+  zoom: number;
+}
+
+/**
+ * 小游戏的主屏 canvas 总是被拉伸到整个屏幕，不能像网页那样用 CSS 做 FIT 留边，
+ * 所以画布直接取「窗口逻辑尺寸 × 像素比」，再用相机缩放把 720×1280 居中放进去。
+ * 像素比会被压到让设计内容最多放大 maxScale 倍，避免 3x 大屏上画布过大。
+ */
+export function computeFillLayout(devicePixelRatio: number, viewport: Size, design: Size, maxScale = 3): FillLayout {
+  const dpr = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
+  const view = viewport.width > 0 && viewport.height > 0 ? viewport : design;
+  const fit = Math.min(view.width / design.width, view.height / design.height);
+  const pixelRatio = Math.min(dpr, maxScale / fit);
+  const canvasWidth = Math.max(1, Math.round(view.width * pixelRatio));
+  const canvasHeight = Math.max(1, Math.round(view.height * pixelRatio));
+  const zoom = Math.min(canvasWidth / design.width, canvasHeight / design.height);
+  return { canvasWidth, canvasHeight, zoom };
+}

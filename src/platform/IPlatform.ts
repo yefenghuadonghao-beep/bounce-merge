@@ -26,6 +26,10 @@ export interface IPlatform {
   isSoundEnabled(): boolean;
   setSoundEnabled(enabled: boolean): void;
   
+  // Lifecycle
+  /** 切到后台 / 回到前台（小游戏 wx.onHide / wx.onShow）。 */
+  onVisibilityChange(handler: (visible: boolean) => void): void;
+
   // Social (stubs for mini-game APIs)
   share(title: string, imageUrl?: string): Promise<boolean>;
   showAd(): Promise<boolean>;
