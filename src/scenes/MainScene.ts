@@ -264,7 +264,7 @@ export class MainScene extends Phaser.Scene {
     this.uiTexts.shots = this.add.text(48, 168, '', { fontSize: '21px', color: ink });
     this.add.text(606, 78, '下一位', { fontSize: '18px', color: '#8b7c64' }).setOrigin(0.5);
     this.nextPreview = this.add.image(606, 129, 'characters', `ball_${this.shotQueue.peek()[1]}`).setDisplaySize(50, 50);
-    this.comboText = this.add.text(360, 390, '', {
+    this.comboText = this.add.text(360, 404, '', {
       fontSize: '42px', color: '#fff7cd', fontStyle: 'bold', stroke: '#785d42', strokeThickness: 5
     }).setOrigin(0.5).setDepth(10).setVisible(false);
   }
@@ -557,7 +557,7 @@ export class MainScene extends Phaser.Scene {
     this.comboBar?.clear();
     if (state.combo > 1 && !this.resolving) {
       const remaining = Math.max(0, 1 - (time - state.comboTimer) / this.gameConfig.scoring.comboDecayTime);
-      this.comboBar?.fillStyle(0xee976e).fillRect(240, 420, 240 * remaining, 5);
+      this.comboBar?.fillStyle(0xee976e).fillRect(240, 436, 240 * remaining, 5);
     }
     this.matchRings?.clear();
     if (this.isAiming) {
