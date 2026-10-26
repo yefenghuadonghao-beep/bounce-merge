@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type Phaser from 'phaser';
+import { setPlatform } from '../../platform';
+import { WebPlatform } from '../../platform/WebPlatform';
 import { GameOverScene } from '../GameOverScene';
 import { GameController } from '../../core/GameController';
 import balls from '../../config/ballLevels.json';
@@ -7,6 +9,9 @@ import levels from '../../config/levelConfig.json';
 import config from '../../config/gameConfig.json';
 
 vi.mock('phaser', () => ({ default: { Scene: class {} } }));
+
+// 场景通过 getPlatform() 取存档/音效，入口外需显式注册。
+beforeEach(() => setPlatform(new WebPlatform()));
 
 describe('retry and personal record', () => {
   let scene: GameOverScene;

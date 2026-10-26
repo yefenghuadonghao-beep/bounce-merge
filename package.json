@@ -9,7 +9,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "art:atlas": "node scripts/build-character-atlas.mjs",
-    "font:subset": "node scripts/subset-font.mjs"
+    "font:subset": "node scripts/subset-font.mjs",
+    "build:wechat": "tsc && node scripts/build-wechat.mjs"
   },
   "dependencies": {
     "phaser": "^3.80.1"

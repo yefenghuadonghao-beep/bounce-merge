@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 
 export const characterNames = ['', '困困猫', '放空豚', '暴躁鼠', '续命蛙', '打卡汪', '发呆兔', '摸鱼熊', '躺平鹅', '溜了狐', '下班大王'];
 export const ink = '#49392d';
+// 设计区域外的留边颜色（网页 body 背景、小游戏全屏画布底色）。
+export const letterboxColor = '#ded6c3';
 
 // 全部文字统一用圆体子集（Resource Han Rounded CN，SIL OFL 1.1），系统字体兜底。
 // 字体文件由 npm run font:subset 生成，启动时经平台层 loadFont 加载完成后才创建游戏。

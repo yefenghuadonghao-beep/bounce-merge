@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import type Phaser from 'phaser';
+import { setPlatform } from '../../platform';
+import { WebPlatform } from '../../platform/WebPlatform';
 import { MainScene } from '../MainScene';
 import { UpgradeScene } from '../UpgradeScene';
 import { ShotQueue } from '../../core/ShotQueue';
@@ -10,6 +12,9 @@ import levelConfigs from '../../config/levelConfig.json';
 import config from '../../config/gameConfig.json';
 
 vi.mock('phaser', () => ({ default: { Scene: class {}, Scenes: { Events: { SHUTDOWN: 'shutdown' } } } }));
+
+// 场景通过 getPlatform() 取存档/音效，入口外需显式注册。
+beforeEach(() => setPlatform(new WebPlatform()));
 
 describe('scene turn lifecycle', () => {
   let scene: MainScene;

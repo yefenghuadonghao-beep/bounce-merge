@@ -42,3 +42,6 @@ coverage/
 
 # Font sources (large; see art/fonts/README.md)
 art/fonts/source/
+
+# WeChat mini-game build output (npm run build:wechat)
+minigame/

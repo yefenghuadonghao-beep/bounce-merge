@@ -46,6 +46,12 @@ describe('平台注册', () => {
     setPlatform(platform);
     expect(getPlatform()).toBe(platform);
   });
+
+  it('未注册时直接报错，不偷偷回退到网页实现', async () => {
+    vi.resetModules();
+    const fresh = await import('..');
+    expect(() => fresh.getPlatform()).toThrow(/setPlatform/);
+  });
 });
 
 describe('WebPlatform.loadFont', () => {

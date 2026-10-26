@@ -14,7 +14,7 @@ const phaserFlags: Record<string, boolean> = {
   FEATURE_SOUND: false
 };
 
-function phaserFeatureFlags(): Plugin {
+export function phaserFeatureFlags(): Plugin {
   const pattern = new RegExp(`typeof (${Object.keys(phaserFlags).join('|')})\\b`, 'g');
   return {
     name: 'phaser-feature-flags',
@@ -27,14 +27,17 @@ function phaserFeatureFlags(): Plugin {
   };
 }
 
+// 正式构建用精简版 Phaser（src/vendor/phaser-custom.js）；开发和测试保持完整版。
+export const phaserCustomAlias = {
+  find: /^phaser$/,
+  replacement: fileURLToPath(new URL('./src/vendor/phaser-custom.js', import.meta.url))
+};
+
 export default defineConfig(({ command }) => ({
   base: './',
   plugins: command === 'build' ? [phaserFeatureFlags()] : [],
   resolve: {
-    // 正式构建用精简版 Phaser（src/vendor/phaser-custom.js）；开发和测试保持完整版。
-    alias: command === 'build'
-      ? [{ find: /^phaser$/, replacement: fileURLToPath(new URL('./src/vendor/phaser-custom.js', import.meta.url)) }]
-      : []
+    alias: command === 'build' ? [phaserCustomAlias] : []
   },
   build: {
     outDir: 'dist',
