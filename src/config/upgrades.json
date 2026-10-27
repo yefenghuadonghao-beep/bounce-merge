@@ -2,9 +2,9 @@
   {
     "id": "extra_shot",
     "name": "摸鱼续杯",
-    "description": "之后每关多 3 次发射",
+    "description": "之后每关多 1 次发射，仅领取一次",
     "type": "stat",
-    "value": 3
+    "value": 1
   },
   {
     "id": "starting_level_boost",
@@ -16,16 +16,16 @@
   {
     "id": "extra_shake",
     "name": "抱团充电",
-    "description": "之后每关多 1 次抱团机会",
+    "description": "之后每关多 1 次抱团，仅领取一次",
     "type": "passive",
     "value": 1
   },
   {
     "id": "swap_charge",
     "name": "换个搭子",
-    "description": "之后每关多 2 次换搭子机会",
+    "description": "之后每关多 1 次换球，仅领取一次",
     "type": "passive",
-    "value": 2
+    "value": 1
   },
   {
     "id": "score_boost",

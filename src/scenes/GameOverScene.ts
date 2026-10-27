@@ -40,13 +40,18 @@ export class GameOverScene extends Phaser.Scene {
     this.add.text(360, 760, `最高 ${summary.bestCombo} 连合 · 碰掉 ${summary.merges} 次坏情绪\n下一次，试试让连合不断档！`, {
       fontFamily: FONT_FAMILY, fontSize: '24px', color: '#8b7c64', align: 'center', lineSpacing: 14
     }).setOrigin(0.5);
-    if (this.textures.exists('characters')) this.add.image(360, 1110, 'characters', `ball_${summary.highest}`).setDisplaySize(135, 135);
+    if (this.textures.exists('characters')) this.add.image(360, 1175, 'characters', `ball_${summary.highest}`).setDisplaySize(90, 90);
     button(this, 360, 930, 440, this.won ? '再挑战一次' : '重试本关', () => {
       if (this.won) { this.restart(); return; }
       if (this.restarting) return;
       this.restarting = true;
       this.gameController.retryLevel();
       this.scene.start('MainScene', { gameController: this.gameController, gameConfig: this.gameConfig, afterimageMode: this.afterimageMode });
+    });
+    button(this, 360, 1040, 440, '返回首页', () => {
+      if (this.restarting) return;
+      this.restarting = true;
+      this.scene.start('HomeScene', { gameController: this.gameController, gameConfig: this.gameConfig });
     });
     this.saveRecord(record);
   }

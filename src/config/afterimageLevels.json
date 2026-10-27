@@ -2,10 +2,10 @@
   {
     "level": 1,
     "title": "留下第一道光",
-    "hint": "先向同一侧连发两球，看看残影共鸣",
+    "hint": "先向同一侧连发两球，完成 1 次共鸣",
     "targetScore": 0,
     "targetBallLevel": 3,
-    "shots": 12,
+    "shots": 10,
     "shotSequence": [
       1,
       1,
@@ -16,9 +16,7 @@
       1,
       1,
       2,
-      2,
-      1,
-      1
+      2
     ],
     "obstacles": [
       {
@@ -38,29 +36,28 @@
     ],
     "presetBalls": [],
     "shakes": 2,
-    "swaps": 2,
-    "chapterEnd": false
+    "swaps": 1,
+    "chapterEnd": false,
+    "requiredAfterimageMerges": 1
   },
   {
     "level": 2,
     "title": "交叉共鸣",
-    "hint": "借圆钉反弹，让同款轨迹交叉",
+    "hint": "完成 2 次共鸣，换球安排同款弹道",
     "targetScore": 0,
     "targetBallLevel": 4,
-    "shots": 12,
+    "shots": 10,
     "shotSequence": [
       2,
-      2,
-      2,
-      2,
-      3,
       3,
       2,
       2,
       3,
-      3,
       2,
-      2
+      2,
+      2,
+      3,
+      3
     ],
     "obstacles": [
       {
@@ -70,36 +67,37 @@
       }
     ],
     "presetBalls": [],
-    "shakes": 2,
-    "swaps": 2,
-    "chapterEnd": false
+    "shakes": 1,
+    "swaps": 1,
+    "chapterEnd": false,
+    "requiredAfterimageMerges": 2
   },
   {
     "level": 3,
     "title": "绕行搭桥",
-    "hint": "绕过横梁；堵路时用清影抱团",
+    "hint": "完成 3 次共鸣，再把核心合成打卡汪",
     "targetScore": 0,
     "targetBallLevel": 5,
     "shots": 12,
     "shotSequence": [
+      2,
+      3,
+      2,
       3,
       3,
+      2,
+      3,
+      2,
       3,
       3,
-      4,
-      4,
-      3,
-      3,
-      4,
-      4,
-      3,
-      3
+      2,
+      2
     ],
     "obstacles": [
       {
         "x": 360,
         "y": 620,
-        "width": 250,
+        "width": 190,
         "height": 18,
         "angle": 0
       },
@@ -119,30 +117,31 @@
       }
     ],
     "presetBalls": [],
-    "shakes": 2,
-    "swaps": 2,
-    "chapterEnd": false
+    "shakes": 1,
+    "swaps": 1,
+    "chapterEnd": false,
+    "requiredAfterimageMerges": 3
   },
   {
     "level": 4,
     "title": "残影派对",
-    "hint": "同款核心还能合成，试试连锁共鸣",
+    "hint": "完成 4 次共鸣，用低阶团子搭出发呆兔",
     "targetScore": 0,
     "targetBallLevel": 6,
     "shots": 12,
     "shotSequence": [
-      4,
-      4,
-      4,
-      4,
-      5,
-      5,
-      4,
-      4,
-      5,
-      5,
-      4,
-      4
+      3,
+      2,
+      3,
+      3,
+      2,
+      3,
+      3,
+      2,
+      3,
+      3,
+      2,
+      3
     ],
     "obstacles": [
       {
@@ -173,8 +172,9 @@
       }
     ],
     "presetBalls": [],
-    "shakes": 2,
-    "swaps": 2,
-    "chapterEnd": true
+    "shakes": 1,
+    "swaps": 1,
+    "chapterEnd": true,
+    "requiredAfterimageMerges": 4
   }
 ]

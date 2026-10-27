@@ -34,6 +34,11 @@ export class UpgradeScene extends Phaser.Scene {
     const target = this.gameController.getLevelConfig().targetBallLevel ?? state.highestBallLevel;
     if (this.textures.exists('characters')) this.add.image(360, 266, 'characters', `ball_${target}`).setDisplaySize(118, 118);
     this.add.text(360, 360, '打工辛苦了，领一份小福利', { fontFamily: FONT_FAMILY, fontSize: '28px', color: ink }).setOrigin(0.5);
+    button(this, 360, 1230, 240, '返回首页', () => {
+      if (this.selecting) return;
+      this.selecting = true;
+      this.scene.start('HomeScene', { gameController: this.gameController, gameConfig: this.gameConfig });
+    });
     const selected = this.selectRandomUpgrades(3);
     for (let i = 0, length = selected.length; i < length; i++) this.createUpgradeButton(selected[i], i);
     this.add.text(360, 1170, `刚刚解锁：${characterNames[target]}  ·  升级持续整局`, { fontFamily: FONT_FAMILY, fontSize: '22px', color: '#8b7c64' }).setOrigin(0.5);
@@ -42,6 +47,7 @@ export class UpgradeScene extends Phaser.Scene {
   private selectRandomUpgrades(count: number): Upgrade[] {
     const state = this.gameController.getGameState();
     const available = upgrades.filter(upgrade => {
+      if (['extra_shot', 'extra_shake', 'swap_charge'].includes(upgrade.id) && state.upgrades.some(owned => owned.id === upgrade.id)) return false;
       // 手工关卡依赖固定球径和发射等级，只提供不改变谜题结构的福利。
       if (this.gameController.getLevelConfig().shotSequence && ['bigger_balls', 'starting_level_boost'].includes(upgrade.id)) return false;
       if (upgrade.id === 'bigger_balls') return state.ballSizeMultiplier < 1.6;

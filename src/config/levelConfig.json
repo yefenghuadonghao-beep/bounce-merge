@@ -76,14 +76,13 @@
     "hint": "绕过中间圆钉，选左边还是右边？",
     "targetScore": 0,
     "targetBallLevel": 3,
-    "shots": 6,
+    "shots": 5,
     "shotSequence": [
       1,
       2,
       1,
-      2,
       1,
-      2
+      1
     ],
     "obstacles": [
       {
@@ -101,27 +100,26 @@
       {
         "x": 530,
         "y": 1040,
-        "level": 2
+        "level": 1
       }
     ],
     "shakes": 1,
-    "swaps": 2,
+    "swaps": 1,
     "chapterEnd": false
   },
   {
     "level": 4,
     "title": "咖啡续命",
-    "hint": "找准困困猫，试试一发连锁",
+    "hint": "先合两只放空豚，再规划下一次连合",
     "targetScore": 0,
     "targetBallLevel": 4,
-    "shots": 6,
+    "shots": 5,
     "shotSequence": [
       1,
       1,
       2,
-      2,
       1,
-      1
+      2
     ],
     "obstacles": [
       {
@@ -141,19 +139,19 @@
     ],
     "presetBalls": [
       {
-        "x": 280,
-        "y": 970,
+        "x": 360,
+        "y": 1030,
         "level": 1
       },
       {
-        "x": 360,
-        "y": 1020,
+        "x": 180,
+        "y": 970,
         "level": 2
       },
       {
-        "x": 440,
+        "x": 540,
         "y": 970,
-        "level": 3
+        "level": 2
       }
     ],
     "shakes": 1,
@@ -166,16 +164,14 @@
     "hint": "中间有挡板，从两侧绕进去",
     "targetScore": 0,
     "targetBallLevel": 4,
-    "shots": 8,
+    "shots": 6,
     "shotSequence": [
       2,
-      2,
-      1,
       1,
       2,
+      1,
       2,
-      3,
-      2
+      1
     ],
     "obstacles": [
       {
@@ -204,27 +200,27 @@
       {
         "x": 360,
         "y": 1020,
-        "level": 3
+        "level": 2
       }
     ],
     "shakes": 1,
-    "swaps": 2,
+    "swaps": 1,
     "chapterEnd": false
   },
   {
     "level": 6,
     "title": "工位太远",
-    "hint": "两边都是暴躁鼠，抱团能帮它们碰头",
+    "hint": "先补齐两只续命蛙，抱团留到最后",
     "targetScore": 0,
     "targetBallLevel": 5,
     "shots": 6,
     "shotSequence": [
       2,
-      3,
+      1,
       2,
       3,
       1,
-      1
+      2
     ],
     "obstacles": [],
     "presetBalls": [
@@ -236,7 +232,7 @@
       {
         "x": 360,
         "y": 1030,
-        "level": 4
+        "level": 2
       },
       {
         "x": 560,
@@ -251,16 +247,16 @@
   {
     "level": 7,
     "title": "下班倒计时",
-    "hint": "基础只有 5 发，换搭子也不消耗发射",
+    "hint": "只有 5 发，先把低阶球配成同款",
     "targetScore": 0,
     "targetBallLevel": 5,
     "shots": 5,
     "shotSequence": [
       2,
+      3,
       2,
-      3,
-      3,
-      2
+      2,
+      1
     ],
     "obstacles": [
       {
@@ -278,31 +274,29 @@
       {
         "x": 510,
         "y": 1030,
-        "level": 4
+        "level": 3
       }
     ],
     "shakes": 1,
-    "swaps": 2,
+    "swaps": 1,
     "chapterEnd": false
   },
   {
     "level": 8,
     "title": "全员下班",
-    "hint": "绕过分流钉和挡板，合出发呆兔",
+    "hint": "没有高阶搭子，分两路合出续命蛙",
     "targetScore": 0,
     "targetBallLevel": 6,
-    "shots": 10,
+    "shots": 8,
     "shotSequence": [
       3,
+      2,
       3,
       2,
-      2,
-      4,
-      3,
       3,
       2,
-      2,
-      3
+      3,
+      2
     ],
     "obstacles": [
       {
@@ -341,16 +335,16 @@
       {
         "x": 360,
         "y": 1020,
-        "level": 4
+        "level": 2
       },
       {
         "x": 530,
         "y": 970,
-        "level": 2
+        "level": 3
       }
     ],
-    "shakes": 2,
-    "swaps": 2,
+    "shakes": 1,
+    "swaps": 1,
     "chapterEnd": true
   }
 ]

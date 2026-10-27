@@ -9,6 +9,7 @@ import { ShotQueue } from '../../core/ShotQueue';
 import { GameController } from '../../core/GameController';
 import ballLevels from '../../config/ballLevels.json';
 import levelConfigs from '../../config/levelConfig.json';
+import shadowLevels from '../../config/afterimageLevels.json';
 import config from '../../config/gameConfig.json';
 
 vi.mock('phaser', () => ({ default: { Scene: class {}, Scenes: { Events: { SHUTDOWN: 'shutdown' } } } }));
@@ -39,6 +40,19 @@ describe('scene turn lifecycle', () => {
     scene['afterimageMergeCount'] = 1;
     scene.update(1400);
     expect(scene.scene.start).toHaveBeenCalledWith('UpgradeScene', expect.objectContaining({ afterimageMode: true }));
+  });
+
+  it('does not finish the final shadow round after only one resonance', () => {
+    controller.startRun(shadowLevels);
+    for (let i = 0; i < 3; i++) controller.advanceLevel();
+    scene.init({ gameController: controller, gameConfig: config, afterimageMode: true });
+    controller.processMerge(5, 1000);
+    scene['afterimageMergeCount'] = 3;
+    scene.update(1100);
+    expect(scene.scene.start).not.toHaveBeenCalled();
+    scene['afterimageMergeCount'] = 4;
+    scene.update(1400);
+    expect(scene.scene.start).toHaveBeenCalledWith('GameOverScene', expect.objectContaining({ won: true }));
   });
 
   it('does not create shadows for preset or merged balls', () => {
@@ -235,4 +249,17 @@ describe('chapter completion and safe upgrades', () => {
     expect(offered).not.toContain('starting_level_boost');
     expect(offered.length).toBe(4);
   });
+  it('does not offer repeat resource upgrades that erase the difficulty curve', () => {
+    const controller = new GameController(ballLevels, levelConfigs, config);
+    const scene = new UpgradeScene();
+    scene.init({ gameController: controller, gameConfig: config });
+    const choices = scene['selectRandomUpgrades'](10);
+    for (let i = 0; i < choices.length; i++) {
+      if (choices[i].id !== 'score_boost') controller.applyUpgrade(choices[i]);
+    }
+    expect(scene['selectRandomUpgrades'](10).map(upgrade => upgrade.id)).toEqual(['score_boost']);
+    controller.advanceLevel();
+    expect(controller.getGameState().shotsRemaining).toBe(levelConfigs[1].shots + 1);
+  });
+
 });

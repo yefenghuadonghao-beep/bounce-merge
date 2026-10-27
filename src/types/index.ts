@@ -16,6 +16,7 @@ export interface BoardObstacle {
 }
 
 export interface LevelConfig {
+  requiredAfterimageMerges?: number;
   title?: string;
   hint?: string;
   obstacles?: BoardObstacle[];

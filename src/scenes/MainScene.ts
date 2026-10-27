@@ -178,7 +178,7 @@ export class MainScene extends Phaser.Scene {
       this.gameController.retryLevel();
       this.scene.restart({ gameController: this.gameController, gameConfig: this.gameConfig, afterimageMode: this.afterimageMode });
     });
-    const home = this.add.text(210, 287, '首页', { fontFamily: FONT_FAMILY, fontSize: '20px', color: ink, backgroundColor: '#eee6d5', padding: { x: 8, y: 6 } }).setInteractive({ useHandCursor: true });
+    const home = this.add.text(488, 279, '返回首页', { fontFamily: FONT_FAMILY, fontSize: '24px', color: ink, backgroundColor: '#f3bb90', padding: { x: 16, y: 12 } }).setInteractive({ useHandCursor: true });
     home.on('pointerdown', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
       event.stopPropagation();
       if (this.resolving) return;
@@ -369,7 +369,10 @@ export class MainScene extends Phaser.Scene {
     this.uiTexts.score.setText(`快乐值 ${state.score}`);
     this.uiTexts.shots.setText(`还有 ${state.shotsRemaining} 球`);
     this.uiTexts.progress.setText(state.highestBallLevel === 1 ? '同款相碰 → 升一级' : `本关合成：${characterNames[state.highestBallLevel]}`);
-    if (this.afterimageMode) this.uiTexts.progress.setText(`残影共鸣 ${Math.min(1, this.afterimageMergeCount)}/1 · 最高 ${characterNames[state.highestBallLevel]}`);
+    if (this.afterimageMode) {
+      const requiredMerges = this.gameController.getLevelConfig().requiredAfterimageMerges ?? 1;
+      this.uiTexts.progress.setText(`残影共鸣 ${Math.min(requiredMerges, this.afterimageMergeCount)}/${requiredMerges} · 最高 ${characterNames[state.highestBallLevel]}`);
+    }
     const shakeName = this.afterimageMode ? '清影抱团' : '抱团取暖';
     this.shakeLabel?.setText(`${shakeName} ×${this.shakesRemaining}`);
     this.swapLabel?.setText(`换个搭子 ×${this.swapsRemaining}`);
@@ -727,7 +730,7 @@ export class MainScene extends Phaser.Scene {
     
     const current = this.gameController.getGameState();
     const status = this.gameController.checkLevelComplete();
-    if (status === 'win' && (!this.afterimageMode || this.afterimageMergeCount > 0)) {
+    if (status === 'win' && (!this.afterimageMode || this.afterimageMergeCount >= (this.gameController.getLevelConfig().requiredAfterimageMerges ?? 1))) {
       this.resolving = true;
       this.canShoot = false;
       this.isAiming = false;

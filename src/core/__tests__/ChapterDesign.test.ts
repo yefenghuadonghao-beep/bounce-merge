@@ -43,8 +43,13 @@ describe('chapter one authored maps', () => {
     });
   }
 
-  it('the coffee break supports a one-shot chain', () => {
-    expect(simulateStage(4, [0.3])).toMatchObject({ won: true, shots: 1 });
+  it('the coffee break requires planning beyond the first shot', () => {
+    expect(simulateStage(4, [0.3])).toMatchObject({ won: false, shots: 1 });
+  });
+  it('the final three levels cannot be cleared by firing straight down', () => {
+    for (let stage = 6; stage <= 8; stage++) {
+      expect(simulateStage(stage, Array(levels[stage - 1].shots).fill(Math.PI / 2)).won).toBe(false);
+    }
   });
   it('the limited-shot challenge does not reward center-only firing without rescue', () => {
     expect(simulateStage(7, Array(levels[6].shots).fill(Math.PI / 2)).won).toBe(false);
