@@ -54,6 +54,7 @@ export class MainScene extends Phaser.Scene {
   private comboText!: Phaser.GameObjects.Text;
   private afterimageMode: boolean = false;
   private noAutoTransition: boolean = false;
+  private noWinCheck: boolean = false;
   private afterimageSystem?: AfterimageSystem;
   private afterimageConfig?: AfterimageConfig;
   private afterimageGraphics: Map<number, AfterimagePhysics> = new Map();
@@ -75,10 +76,12 @@ export class MainScene extends Phaser.Scene {
     this.balls = [];
     this.charge = new MergeCharge();
     
-    // 开发模式：禁用自动转场
+    // 开发模式：禁用自动转场或完全禁用胜利检测
     if (import.meta.env.DEV) {
       const urlParams = new URLSearchParams(window.location.search);
-      this.noAutoTransition = urlParams.get('debug') === 'noauto';
+      const debug = urlParams.get('debug') || '';
+      this.noAutoTransition = debug.includes('noauto');
+      this.noWinCheck = debug.includes('nowin');
     }
     this.isAiming = false;
     this.canShoot = true;
@@ -611,15 +614,32 @@ export class MainScene extends Phaser.Scene {
     });
   }
 
+  private victoryOverlay?: Phaser.GameObjects.Container;
+
   private showVictory() {
+    // 开发模式下可完全禁用胜利overlay
+    if (import.meta.env.DEV) {
+      const debug = new URLSearchParams(window.location.search).get('debug');
+      if (debug?.includes('nooverlay')) {
+        return;
+      }
+    }
+    
+    // 清理旧的overlay避免重复
+    if (this.victoryOverlay) {
+      this.victoryOverlay.destroy();
+    }
     const state = this.gameController.getGameState();
     const target = this.gameController.getLevelConfig().targetBallLevel ?? state.highestBallLevel;
+    const ink = '#3d3028';
     const shade = this.add.rectangle(360, 660, 620, 870, 0xfffcf2, 0.9).setDepth(20);
     const hero = this.add.image(360, 610, 'characters', `ball_${target}`).setDisplaySize(190, 190).setDepth(21);
-    this.add.text(360, 455, '坏情绪，碰掉了！', { fontFamily: FONT_FAMILY, fontSize: '42px', color: ink, fontStyle: 'bold' }).setOrigin(0.5).setDepth(21);
-    this.add.text(360, 775, `${characterNames[target]} 到岗\n本轮最高 ${this.gameController.getRunSummary().bestCombo} 连合`, {
+    const title = this.add.text(360, 455, '坏情绪，碰掉了！', { fontFamily: FONT_FAMILY, fontSize: '42px', color: ink, fontStyle: 'bold' }).setOrigin(0.5).setDepth(21);
+    const subtitle = this.add.text(360, 775, `${characterNames[target]} 到岗\n本轮最高 ${this.gameController.getRunSummary().bestCombo} 连合`, {
       fontFamily: FONT_FAMILY, fontSize: '28px', color: ink, align: 'center', lineSpacing: 16
     }).setOrigin(0.5).setDepth(21);
+    
+    this.victoryOverlay = this.add.container(0, 0, [shade, hero, title, subtitle]);
     this.tweens.add({ targets: hero, y: 580, duration: 450, yoyo: true, repeat: 1, ease: 'Sine.InOut' });
     this.tweens.add({ targets: shade, alpha: { from: 0, to: 1 }, duration: 200 });
   }
@@ -664,6 +684,10 @@ export class MainScene extends Phaser.Scene {
       if (this.balls.includes(first) && this.balls.includes(second)) this.mergeBalls(first, second);
     }
     if (this.resolving) return;
+    
+    // 开发模式下可完全禁用胜利检测
+    if (this.noWinCheck) return;
+    
     const current = this.gameController.getGameState();
     const status = this.gameController.checkLevelComplete();
     if (status === 'win') {

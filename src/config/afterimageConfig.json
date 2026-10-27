@@ -3,8 +3,8 @@
   "maxTracks": 15,
   "fadeAfterShots": 10,
   "segmentInterval": 15,
-  "segmentThickness": 5,
-  "baseOpacity": 0.5,
+  "segmentThickness": 12,
+  "baseOpacity": 0.9,
   "magnetRadius": 80,
   "magnetRadiusMultipliers": {
     "1": 0.8,

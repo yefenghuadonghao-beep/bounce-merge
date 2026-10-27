@@ -22,8 +22,15 @@ async function main() {
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 720, height: 1280 });
+    
+    // 监听console
+    page.on('console', msg => {
+      if (msg.text().includes('[showVictory]')) {
+        console.log('🎮', msg.text());
+      }
+    });
 
-    await page.goto('http://localhost:5173?mode=afterimage&debug=noauto', {
+    await page.goto('http://localhost:5173?mode=afterimage&debug=nowin,nooverlay&t=' + Date.now(), {
       waitUntil: 'domcontentloaded',
       timeout: 30000
     });
@@ -56,19 +63,18 @@ async function main() {
 
     // Scenario 1: Multiple afterimage tracks
     console.log('场景1: 创建多条残影轨迹');
-    await fire(Math.PI / 2 + 0.4);  // 右斜
-    await fire(Math.PI / 2);        // 正中
-    await fire(Math.PI / 2 - 0.4);  // 左斜
+    await fire(Math.PI / 2 + 0.3, 6000);
+    await fire(Math.PI / 2 - 0.2, 6000);
+    await fire(Math.PI / 2 + 0.5, 6000);
 
     console.log('📸 截图1: 多条残影轨迹');
     const shot1 = await page.screenshot();
     writeFileSync(`${ARTIFACT_DIR}/afterimage-1-tracks.png`, shot1);
     console.log(`  ${(shot1.length / 1024).toFixed(1)} KB, MD5: ${getMD5(shot1)}`);
 
-    // Scenario 2: Ball bouncing off afterimage
+    // Scenario 2: Ball bouncing off afterimage (capture mid-flight)
     console.log('\n场景2: 球体与残影交互');
-    await fire(Math.PI / 2 + 0.6);  // 极右
-    await sleep(2000);  // 等待球体mid-flight
+    await fire(Math.PI / 2 - 0.4, 1500);  // 短等待捕捉mid-flight
 
     console.log('📸 截图2: 球体弹跳');
     const shot2 = await page.screenshot();
@@ -77,14 +83,12 @@ async function main() {
 
     await sleep(5000);  // 让球落下
 
-    // Scenario 3: Merge scenario
-    console.log('\n场景3: 密集发射触发合并');
-    await fire(Math.PI / 2 - 0.2);
-    await fire(Math.PI / 2 + 0.1);
-    await fire(Math.PI / 2 - 0.1);
-    await sleep(3000);
+    // Scenario 3: Dense firing for merge
+    console.log('\n场景3: 密集发射');
+    await fire(Math.PI / 2 + 0.1, 4000);
+    await fire(Math.PI / 2 - 0.3, 5000);
 
-    console.log('📸 截图3: 残影合并');
+    console.log('📸 截图3: 密集残影');
     const shot3 = await page.screenshot();
     writeFileSync(`${ARTIFACT_DIR}/afterimage-3-merge.png`, shot3);
     console.log(`  ${(shot3.length / 1024).toFixed(1)} KB, MD5: ${getMD5(shot3)}`);
