@@ -5,6 +5,7 @@ import { setPlatform } from '../../platform';
 import { WebPlatform } from '../../platform/WebPlatform';
 import { MainScene } from '../MainScene';
 import { UpgradeScene } from '../UpgradeScene';
+import { battlePlans } from '../../core/BattlePlan';
 import { ShotQueue } from '../../core/ShotQueue';
 import { GameController } from '../../core/GameController';
 import ballLevels from '../../config/ballLevels.json';
@@ -71,6 +72,36 @@ describe('scene turn lifecycle', () => {
     scene['pendingMerges'] = [[first, second]];
     scene.update(2000);
     expect(scene['mergeBalls']).not.toHaveBeenCalled();
+  });
+
+  it('applies the selected plan to tools and rotates three balls without spending a shot', () => {
+    controller.applyUpgrade(battlePlans()[1]);
+    controller.advanceLevel();
+    scene.init({ gameController: controller, gameConfig: config });
+    scene['shotQueue'] = new ShotQueue(1, 9, Math.random, [1, 2, 3, 1]);
+    scene['canShoot'] = true;
+    scene['updateUI'] = vi.fn();
+    const shots = controller.getGameState().shotsRemaining;
+    expect(scene['swapsRemaining']).toBe(levelConfigs[1].swaps + 2);
+    scene['swapBall']();
+    expect(scene['shotQueue'].peek()).toEqual([2, 3, 1]);
+    expect(scene['swapsRemaining']).toBe(levelConfigs[1].swaps + 1);
+    expect(controller.getGameState().shotsRemaining).toBe(shots);
+  });
+
+  it('applies late plan costs and restores the chosen plan on retry', () => {
+    for (let i = 0; i < 3; i++) controller.advanceLevel();
+    controller.applyUpgrade(battlePlans()[2]);
+    controller.advanceLevel();
+    scene.init({ gameController: controller, gameConfig: config });
+    expect(scene['shakesRemaining']).toBe(levelConfigs[4].shakes + 1);
+    expect(scene['swapsRemaining']).toBe(0);
+    expect(scene['charge'].threshold).toBe(3);
+    scene['shakesRemaining'] = 0;
+    controller.retryLevel();
+    scene.init({ gameController: controller, gameConfig: config });
+    expect(scene['shakesRemaining']).toBe(levelConfigs[4].shakes + 1);
+    expect(scene['charge'].threshold).toBe(3);
   });
 
   it('unlocks after 450ms even while other fruit is moving', () => {
@@ -216,12 +247,13 @@ describe('scene turn lifecycle', () => {
     upgradeScene.input = { enabled: true } as Phaser.Input.InputPlugin;
     upgradeScene.cameras = { main: { fadeOut: vi.fn() } } as unknown as Phaser.Cameras.Scene2D.CameraManager;
     upgradeScene.time = { delayedCall: vi.fn() } as unknown as Phaser.Time.Clock;
-    const upgrade = { id: 'extra_shot', name: '', description: '', type: 'stat' as const, value: 1 };
+    const upgrade = battlePlans()[0];
     upgradeScene['selectUpgrade'](upgrade);
     upgradeScene['selectUpgrade'](upgrade);
     expect(controller.getGameState().currentLevel).toBe(2);
-    expect(controller.getGameState().shotsRemaining).toBe(levelConfigs[1].shots + 1);
-    expect(controller.getGameState().upgrades).toHaveLength(1);
+    expect(controller.getGameState().shotsRemaining).toBe(levelConfigs[1].shots + 2);
+    expect(controller.getGameState().upgrades).toHaveLength(0);
+    expect(controller.getGameState().activePlan?.id).toBe('plan_supply');
   });
 });
 
@@ -240,26 +272,16 @@ describe('chapter completion and safe upgrades', () => {
     scene.update(1200);
     expect(scene.scene.start).toHaveBeenCalledWith('GameOverScene', expect.objectContaining({ won: true }));
   });
-  it('does not offer changes to authored ball sizes or levels', () => {
+  it('always offers three different next-level tactics, including late in the run', () => {
     const controller = new GameController(ballLevels, levelConfigs, config);
-    const scene = new UpgradeScene();
-    scene.init({ gameController: controller, gameConfig: config });
-    const offered = scene['selectRandomUpgrades'](10).map(upgrade => upgrade.id);
-    expect(offered).not.toContain('bigger_balls');
-    expect(offered).not.toContain('starting_level_boost');
-    expect(offered.length).toBe(4);
-  });
-  it('does not offer repeat resource upgrades that erase the difficulty curve', () => {
-    const controller = new GameController(ballLevels, levelConfigs, config);
-    const scene = new UpgradeScene();
-    scene.init({ gameController: controller, gameConfig: config });
-    const choices = scene['selectRandomUpgrades'](10);
-    for (let i = 0; i < choices.length; i++) {
-      if (choices[i].id !== 'score_boost') controller.applyUpgrade(choices[i]);
+    for (let stage = 1; stage < 8; stage++) {
+      const offered = battlePlans();
+      expect(new Set(offered.map(card => card.id)).size).toBe(3);
+      expect(offered.every(card => card.scope === 'next_level')).toBe(true);
+      controller.applyUpgrade(offered[0]);
+      controller.advanceLevel();
+      expect(controller.getGameState().shotsRemaining).toBe(levelConfigs[stage].shots + 2);
+      expect(controller.getGameState().upgrades).toHaveLength(0);
     }
-    expect(scene['selectRandomUpgrades'](10).map(upgrade => upgrade.id)).toEqual(['score_boost']);
-    controller.advanceLevel();
-    expect(controller.getGameState().shotsRemaining).toBe(levelConfigs[1].shots + 1);
   });
-
 });

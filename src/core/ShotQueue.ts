@@ -27,6 +27,10 @@ export class ShotQueue {
     [this.queue[0], this.queue[1]] = [this.queue[1], this.queue[0]];
   }
 
+  rotate(): void {
+    this.queue.push(this.queue.shift()!);
+  }
+
   private draw(): number {
     // 固定序列用于关卡解题，额外发射按同一顺序循环补齐。
     if (this.sequence.length > 0) return this.sequence[this.cursor++ % this.sequence.length];

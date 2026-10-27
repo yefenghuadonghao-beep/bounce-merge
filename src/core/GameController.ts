@@ -52,6 +52,10 @@ export class GameController {
     return this.gameState.getLevelConfig();
   }
 
+  getNextLevelConfig() {
+    return this.gameState.getLevelConfig(this.gameState.getState().currentLevel + 1);
+  }
+
   getBallConfig(level: number) {
     return this.mergeSystem.getBallConfig(level);
   }

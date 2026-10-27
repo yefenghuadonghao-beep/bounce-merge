@@ -1,3 +1,4 @@
+import { battlePlanEffects } from './BattlePlan';
 import { GameState, Upgrade, LevelConfig } from '../types';
 
 export class GameStateManager {
@@ -65,13 +66,13 @@ export class GameStateManager {
     this.state.shotsRemaining = Math.max(0, this.state.shotsRemaining - 1);
   }
 
-  getLevelConfig(): LevelConfig {
-    const config = this.levelConfigs.find(l => l.level === this.state.currentLevel);
+  getLevelConfig(level = this.state.currentLevel): LevelConfig {
+    const config = this.levelConfigs.find(l => l.level === level);
     if (config) return config;
 
     const last = this.levelConfigs[this.levelConfigs.length - 1];
-    const extraLevels = this.state.currentLevel - last.level;
-    return { ...last, level: this.state.currentLevel, targetScore: Math.ceil(last.targetScore * Math.pow(1.5, extraLevels)) };
+    const extraLevels = level - last.level;
+    return { ...last, level, targetScore: Math.ceil(last.targetScore * Math.pow(1.5, extraLevels)) };
   }
 
   hasReachedTarget(): boolean {
@@ -86,17 +87,23 @@ export class GameStateManager {
 
   advanceLevel(): void {
     this.state.currentLevel++;
+    this.state.activePlan = this.state.pendingPlan;
+    this.state.pendingPlan = undefined;
     const config = this.getLevelConfig();
     const extraShots = this.state.upgrades.reduce((total, upgrade) => {
       return total + (upgrade.id === 'extra_shot' ? upgrade.value : 0);
     }, 0);
-    this.state.shotsRemaining = config.shots + extraShots;
+    this.state.shotsRemaining = config.shots + extraShots + battlePlanEffects(this.state.activePlan, config).shots;
     this.resetCombo();
     this.state.highestBallLevel = 1;
     this.state.comboTimer = 0;
   }
 
   applyUpgrade(upgrade: Upgrade): void {
+    if (upgrade.scope === 'next_level') {
+      this.state.pendingPlan = upgrade;
+      return;
+    }
     this.state.upgrades.push(upgrade);
 
     switch (upgrade.id) {

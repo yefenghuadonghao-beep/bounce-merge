@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 import { GameController } from '../src/core/GameController';
 import { ShotQueue } from '../src/core/ShotQueue';
+import { battlePlanEffects, battlePlans } from '../src/core/BattlePlan';
 import { MergeCharge } from '../src/core/MergeCharge';
 import balls from '../src/config/ballLevels.json';
 import classicLevels from '../src/config/levelConfig.json';
@@ -18,17 +19,24 @@ const Composite = require('phaser/src/physics/matter-js/lib/body/Composite') as 
 const Sleeping = require('phaser/src/physics/matter-js/lib/core/Sleeping') as typeof MatterJS.Sleeping;
 const Events = require('phaser/src/physics/matter-js/lib/core/Events') as { on: (engine: MatterJS.Engine, name: string, callback: (event: { pairs: { bodyA: MatterJS.BodyType; bodyB: MatterJS.BodyType }[] }) => void) => void };
 
-export function simulateStage(stage: number, angles: number[], rescue = false, afterimage = false) {
+export function simulateStage(stage: number, angles: number[], rescue = false, afterimage = false, planId = '') {
   const levels = afterimage ? shadowLevels : classicLevels;
   const level = levels[stage - 1];
   const controller = new GameController(balls, levels, config);
-  for (let i = 1; i < stage; i++) controller.advanceLevel();
+  for (let i = 1; i < stage; i++) {
+    if (i === stage - 1) {
+      const plan = battlePlans().find(card => card.id === planId);
+      if (plan) controller.applyUpgrade(plan);
+    }
+    controller.advanceLevel();
+  }
+  const effects = battlePlanEffects(controller.getGameState().activePlan, level);
   const queue = new ShotQueue(1, 9, Math.random, level.shotSequence);
   const engine = Engine.create({ enableSleeping: true }) as MatterJS.Engine & { world: MatterJS.CompositeType; gravity: { y: number } };
   engine.gravity.y = config.physics.gravity;
   const active = new Map<MatterJS.BodyType, number>();
-  const charge = new MergeCharge();
-  let shakes = level.shakes;
+  const charge = new MergeCharge(effects.chargeThreshold);
+  let shakes = level.shakes + effects.shakes;
   let pending: [MatterJS.BodyType, MatterJS.BodyType][] = [];
   let shadowMerges = 0;
   let now = 0;
@@ -178,15 +186,18 @@ export function simulateStage(stage: number, angles: number[], rescue = false, a
 
 if (process.env.RUN_CHAPTER === '1') {
   const afterimage = process.env.AFTERIMAGE === '1';
+  const planId = process.env.PLAN ?? '';
+  const plan = battlePlans().find(card => card.id === planId);
   const levels = afterimage ? shadowLevels : classicLevels;
   for (let stage = 1; stage <= levels.length; stage++) {
     let best: { angles: number[]; result: ReturnType<typeof simulateStage> } | undefined;
     let wins = 0;
-    const centered = simulateStage(stage, Array(levels[stage - 1].shots).fill(Math.PI / 2), false, afterimage);
+    const shotCount = levels[stage - 1].shots + battlePlanEffects(stage > 1 ? plan : undefined, levels[stage - 1]).shots;
+    const centered = simulateStage(stage, Array(shotCount).fill(Math.PI / 2), false, afterimage, planId);
     for (let seed = 1; seed <= 60; seed++) {
       let value = (seed * 2654435761) >>> 0;
-      const angles = Array.from({ length: levels[stage - 1].shots }, () => { value = (value * 1664525 + 1013904223) >>> 0; return 0.35 + value / 4294967296 * 2.44; });
-      const result = simulateStage(stage, angles, true, afterimage);
+      const angles = Array.from({ length: shotCount }, () => { value = (value * 1664525 + 1013904223) >>> 0; return 0.35 + value / 4294967296 * 2.44; });
+      const result = simulateStage(stage, angles, true, afterimage, planId);
       if (result.won) {
         wins++;
         if (!best || result.shots + result.rescues < best.result.shots + best.result.rescues) best = { angles, result };

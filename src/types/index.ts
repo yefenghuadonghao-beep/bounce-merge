@@ -32,6 +32,7 @@ export interface LevelConfig {
 }
 
 export interface Upgrade {
+  scope?: 'next_level';
   id: string;
   name: string;
   description: string;
@@ -40,6 +41,8 @@ export interface Upgrade {
 }
 
 export interface GameState {
+  activePlan?: Upgrade;
+  pendingPlan?: Upgrade;
   currentLevel: number;
   score: number;
   highestBallLevel: number;
