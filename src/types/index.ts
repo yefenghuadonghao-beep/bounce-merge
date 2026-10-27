@@ -6,9 +6,27 @@ export interface BallLevel {
   sprite?: string;
 }
 
+export interface BoardObstacle {
+  x: number;
+  y: number;
+  radius?: number;
+  width?: number;
+  height?: number;
+  angle?: number;
+}
+
 export interface LevelConfig {
+  title?: string;
+  hint?: string;
+  obstacles?: BoardObstacle[];
+  presetBalls?: { x: number; y: number; level: number }[];
+  shotSequence?: number[];
+  shakes?: number;
+  swaps?: number;
+  chapterEnd?: boolean;
   level: number;
   targetScore: number;
+  targetBallLevel?: number;
   shots: number;
 }
 
@@ -23,6 +41,7 @@ export interface Upgrade {
 export interface GameState {
   currentLevel: number;
   score: number;
+  highestBallLevel: number;
   shotsRemaining: number;
   combo: number;
   comboTimer: number;
@@ -53,6 +72,7 @@ export interface PhysicsConfig {
 }
 
 export interface BoardConfig {
+  pegPositions?: { x: number; y: number }[];
   pegRows: number;
   pegColumns: number;
   pegRadius: number;
@@ -74,4 +94,30 @@ export interface LauncherConfig {
 export interface ScoringConfig {
   comboDecayTime: number;
   comboMultiplier: number;
+}
+
+export interface AfterimageTrack {
+  id: number;
+  ballLevel: number;
+  segments: AfterimageSegment[];
+  createdAt: number;
+  opacity: number;
+}
+
+export interface AfterimageSegment {
+  x: number;
+  y: number;
+  timestamp: number;
+}
+
+export interface AfterimageConfig {
+  enabled: boolean;
+  maxTracks: number;
+  fadeAfterShots: number;
+  segmentInterval: number;
+  segmentThickness: number;
+  baseOpacity: number;
+  magnetRadius: number;
+  magnetRadiusMultipliers: { [level: number]: number };
+  mergeCheckInterval: number;
 }

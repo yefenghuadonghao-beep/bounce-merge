@@ -1,57 +1,51 @@
-import Phaser from 'phaser';
-import { MainScene } from './scenes/MainScene';
-import { UpgradeScene } from './scenes/UpgradeScene';
-import { GameOverScene } from './scenes/GameOverScene';
-import { GameController } from './core/GameController';
+import { boot, levelCount } from './boot';
 import { WebPlatform } from './platform/WebPlatform';
-import { IPlatform } from './platform/IPlatform';
-import { GameConfig } from './types';
 
-import ballLevels from './config/ballLevels.json';
-import levelConfigs from './config/levelConfig.json';
-import gameConfigData from './config/gameConfig.json';
+const platform = new WebPlatform();
 
-const platform: IPlatform = new WebPlatform();
-const screenSize = platform.getScreenSize();
-const gameConfig: GameConfig = gameConfigData as GameConfig;
-
-const gameController = new GameController(ballLevels, levelConfigs, gameConfig);
-
-const phaserConfig: Phaser.Types.Core.GameConfig = {
-  type: Phaser.AUTO,
-  width: screenSize.width,
-  height: screenSize.height,
-  parent: 'game-container',
-  backgroundColor: '#1a1a2e',
-  physics: {
-    default: 'matter',
-    matter: {
-      gravity: { x: 0, y: gameConfig.physics.gravity },
-      debug: false
+async function start() {
+  const result = await boot({ platform, layout: 'fit', parent: 'game-container' });
+  const { game, gameController, gameConfig, renderScale } = result;
+  const urlParams = new URLSearchParams(window.location.search);
+  const afterimageMode = urlParams.get('mode') === 'afterimage';
+  
+  if (import.meta.env.DEV) {
+    // 调试入口仅在开发构建中存在：window 全局、?stage=N 跳关、?scene=upgrade 直达升级页、?mode=afterimage 残影模式。
+    Object.assign(window, { 
+      game, 
+      gameController, 
+      gameConfig, 
+      renderScale,
+      __bm: {
+        fire: (angle: number = Math.PI / 2) => {
+          const scene = game.scene.scenes.find((s: any) => s.scene.key === 'MainScene' && s.scene.isActive());
+          console.log('[__bm.fire] scene=', scene?.scene?.key, ', hasDebugFire=', typeof (scene as any)?.debugFire);
+          if (scene && typeof (scene as any).debugFire === 'function') {
+            (scene as any).debugFire(angle);
+          } else {
+            console.log('[__bm.fire] No active MainScene or debugFire not found');
+          }
+        }
+      }
+    });
+    const requestedStage = Number(urlParams.get('stage'));
+    const skip = Number.isInteger(requestedStage) && requestedStage >= 1 && requestedStage <= levelCount ? requestedStage - 1 : 0;
+    
+    // URL参数优先级：?scene > ?mode > ?stage，默认主屏幕
+    if (urlParams.get('scene') === 'upgrade') {
+      result.startScene('UpgradeScene', skip, afterimageMode);
+    } else if (afterimageMode || urlParams.has('stage')) {
+      // ?mode=afterimage 或 ?stage=N 直接进入游戏
+      result.startScene('MainScene', skip, afterimageMode);
+    } else {
+      result.startScene('HomeScene');
     }
-  },
-  scene: [MainScene, UpgradeScene, GameOverScene],
-  scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH
+  } else {
+    // 生产环境：默认主屏幕
+    result.startScene('HomeScene');
   }
-};
-
-const game = new Phaser.Game(phaserConfig);
-
-// Expose game globally for debug purposes
-(window as any).game = game;
-(window as any).gameController = gameController;
-(window as any).gameConfig = gameConfig;
-
-// Check for debug parameters
-const urlParams = new URLSearchParams(window.location.search);
-const debugScene = urlParams.get('scene');
-
-if (debugScene === 'upgrade') {
-  game.scene.start('UpgradeScene', { gameController, gameConfig });
-} else {
-  game.scene.start('MainScene', { gameController, gameConfig });
+  return game;
 }
 
-export { game, platform, gameController };
+export const gameReady = start();
+export { platform };

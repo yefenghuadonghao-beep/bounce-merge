@@ -16,6 +16,9 @@ export interface ScoreEvent {
 }
 
 export class GameController {
+  private summary = { merges: 0, bestCombo: 0, highest: 1 };
+  private checkpoint = '';
+  private checkpointSummary = { merges: 0, bestCombo: 0, highest: 1 };
   private gameState: GameStateManager;
   private mergeSystem: MergeSystem;
   private gameConfig: GameConfig;
@@ -28,6 +31,7 @@ export class GameController {
     this.gameState = new GameStateManager(levelConfigs);
     this.mergeSystem = new MergeSystem(ballLevels);
     this.gameConfig = gameConfig;
+    this.checkpoint = this.gameState.serialize();
   }
 
   getGameState() {
@@ -51,6 +55,8 @@ export class GameController {
   }
 
   processMerge(level: number, currentTime: number): { score: number; newLevel: number } {
+    this.gameState.recordMerge(level + 1);
+    this.updateCombo(currentTime);
     this.gameState.incrementCombo(currentTime);
     const state = this.gameState.getState();
     
@@ -61,10 +67,13 @@ export class GameController {
       state.mergeChainBonus
     );
     
-    this.gameState.addScore(score);
+    const awardedScore = this.gameState.addScore(score);
+    this.summary.merges++;
+    this.summary.bestCombo = Math.max(this.summary.bestCombo, state.combo);
+    this.summary.highest = Math.max(this.summary.highest, level + 1);
     
     return {
-      score,
+      score: awardedScore,
       newLevel: level + 1
     };
   }
@@ -72,8 +81,7 @@ export class GameController {
   processWallBounce(): number {
     const state = this.gameState.getState();
     if (state.wallBounceScore > 0) {
-      this.gameState.addScore(state.wallBounceScore);
-      return state.wallBounceScore;
+      return this.gameState.addScore(state.wallBounceScore);
     }
     return 0;
   }
@@ -97,6 +105,8 @@ export class GameController {
 
   advanceLevel() {
     this.gameState.advanceLevel();
+    this.checkpoint = this.gameState.serialize();
+    this.checkpointSummary = { ...this.summary };
   }
 
   applyUpgrade(upgrade: Upgrade) {
@@ -107,8 +117,20 @@ export class GameController {
     return this.mergeSystem.getMaxLevel();
   }
 
+  retryLevel() {
+    this.gameState.deserialize(this.checkpoint);
+    this.summary = { ...this.checkpointSummary };
+  }
+
+  getRunSummary() {
+    return { ...this.summary };
+  }
+
   reset() {
+    this.summary = { merges: 0, bestCombo: 0, highest: 1 };
     this.gameState.reset();
+    this.checkpoint = this.gameState.serialize();
+    this.checkpointSummary = { ...this.summary };
   }
 
   save(): string {
@@ -117,5 +139,7 @@ export class GameController {
 
   load(data: string) {
     this.gameState.deserialize(data);
+    this.checkpoint = this.gameState.serialize();
+    this.checkpointSummary = { ...this.summary };
   }
 }

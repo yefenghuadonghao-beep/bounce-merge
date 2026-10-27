@@ -1,6 +1,21 @@
-# 弹弹合 (BounceMerge)
+# 下班团子 (BounceMerge)
 
-一款结合弹珠台物理、2048合成和轻度Roguelike元素的休闲游戏。
+丑萌打工动物主题的弹射合成游戏。
+
+## 当前试玩版（2026-10-23）
+
+第一章包含 8 个手工关卡，从一发合成教学到有限发射与组合障碍挑战。
+
+- 每关独立地图、预摆团子、固定发射顺序与工具次数；见 [完整关卡表](./CHAPTER_ONE.md)。
+- 每 450ms 可发射一球，瞄准时提示同款目标。
+- 合成带弹性反馈、情绪台词和连合音效；连续合成可加速充能，获得抱团救场。
+- 支持本关重试，恢复入口分数与福利；第 8 关后进入章节通关页。
+- 关间提供不改变球径和发射等级的福利，避免破坏手工关卡解法。
+- 支持音效开关和本地最高分；美术由 Vite 打包。
+
+这是浏览器可玩的玩法原型。微信小游戏的平台实现和构建（`npm run build:wechat`）已就绪，但还没在微信开发者工具或真机上验证；广告和登录仍是占位实现。
+
+玩法依据、验证结果和下一轮验证重点见 [GAMEPLAY.md](./GAMEPLAY.md)。
 
 ## 游戏玩法
 
@@ -8,9 +23,9 @@
 - ⚡ **物理弹跳**：球体在钉板上按物理规律弹跳
 - 🔄 **等级合成**：两个相同等级的球相碰时合成为更高等级（更大、不同颜色）
 - 🎊 **连锁反应**：合成可以触发连锁反应，获得更高分数
-- 🎮 **关卡目标**：每关有目标分数和发射次数限制
+- 🎮 **关卡目标**：每关有目标角色和发射次数限制
 - ⬆️ **升级系统**：通关后从3个随机升级中选择1个
-- 🏃 **Run系统**：连续通过多个关卡，目标分数递增
+- 🏃 **Run系统**：完成第一章八关，挑战更少发射与更高连合
 
 ## 快速开始
 
@@ -35,6 +50,13 @@ npm run build
 ```
 
 构建产物在 `dist/` 目录，可部署到任何静态服务器。
+
+正式构建使用精简版 Phaser（`src/vendor/phaser-custom.js`，经 vite alias 替换 `phaser`），
+只打包 WebGL/Canvas 渲染、场景、相机、输入、补间、计时、Matter 物理和游戏用到的 GameObject，
+去掉 Arcade 物理、Tilemap、Phaser 声音、粒子等：Phaser chunk 从 1,478.57 kB（gzip 339.68 kB）
+降到 877.00 kB（gzip 211.89 kB）。开发模式和单元测试仍使用完整版 Phaser，
+所以**新用到某个 Phaser 功能时要在 `phaser-custom.js` 里补上**，并用 `npm run build && npx vite preview`
+确认；`src/vendor/__tests__/phaserCustom.test.ts` 会检查所有 `add.xxx` 和运行时 `Phaser.*` 引用是否都在精简版里。
 
 ### 运行测试
 
@@ -193,139 +215,18 @@ interface IPlatform {
 
 包含物理参数、钉板布局、发射器设置、计分规则等。
 
-## 微信/抖音小游戏迁移指南
-
-### 已完成的准备工作 ✅
-
-1. **纯逻辑层**: 核心代码无Phaser依赖，可直接复用
-2. **平台抽象**: `IPlatform`接口已定义，只需实现具体平台
-3. **Canvas渲染**: 所有UI在Canvas内，无DOM/CSS依赖
-4. **轻量化**: 无外部资源，程序生成图形，包体小
-5. **固定尺寸**: 竖屏布局 720x1280，适配手机屏幕
-
-### 迁移步骤
-
-#### 1. 创建微信小游戏适配器 `WeChatPlatform.ts`
-
-```typescript
-import { IPlatform } from './IPlatform'
-
-export class WeChatPlatform implements IPlatform {
-  async saveData(key: string, value: string): Promise<void> {
-    wx.setStorageSync(key, value)
-  }
-
-  async loadData(key: string): Promise<string | null> {
-    return wx.getStorageSync(key) || null
-  }
-
-  getScreenSize() {
-    const info = wx.getSystemInfoSync()
-    return { width: info.screenWidth, height: info.screenHeight }
-  }
-
-  getSafeArea() {
-    const info = wx.getSystemInfoSync()
-    return info.safeArea || { top: 0, bottom: 0, left: 0, right: 0 }
-  }
-
-  playSound(soundId: string) {
-    wx.createInnerAudioContext().play()
-  }
-
-  async share(title: string, imageUrl?: string) {
-    return wx.shareAppMessage({ title, imageUrl })
-  }
-
-  async showAd() {
-    // 使用微信激励视频广告
-    const ad = wx.createRewardedVideoAd({ adUnitId: 'xxx' })
-    return ad.show()
-  }
-
-  async login() {
-    const { code } = await wx.login()
-    // 调用后端换取token
-    return { userId: 'xxx', nickname: 'xxx' }
-  }
-}
-```
-
-#### 2. 使用 `weapp-adapter`
+## 微信/抖音小游戏
 
 ```bash
-npm install weapp-adapter
+npm run build:wechat   # 输出 minigame/，用微信开发者工具导入该目录
 ```
 
-在入口文件顶部：
+- 构建方式、weapp-adapter 接入要求、已验证/未验证清单：[docs/wechat-minigame.md](./docs/wechat-minigame.md)
+- 包体实测和分包计划：[docs/wechat-subpackages.md](./docs/wechat-subpackages.md)
 
-```typescript
-import './weapp-adapter' // 提供window、canvas等Web API兼容
-```
+`WeChatPlatform`（`src/platform/WeChatPlatform.ts`）已实现存档、窗口/安全区、字体、音效、分享和前后台；广告和登录仍是占位。网页入口 `src/main.ts` 和小游戏入口 `src/wechat/main.ts` 共用 `src/boot.ts`。尚未在微信开发者工具或真机上运行过。
 
-#### 3. 修改入口文件 `main.ts`
-
-```typescript
-// 根据环境选择平台
-const platform: IPlatform = 
-  typeof wx !== 'undefined' 
-    ? new WeChatPlatform() 
-    : new WebPlatform()
-```
-
-#### 4. 分包配置（控制包体大小）
-
-`game.json`:
-
-```json
-{
-  "deviceOrientation": "portrait",
-  "subpackages": [
-    {
-      "name": "scenes",
-      "root": "scenes/"
-    }
-  ]
-}
-```
-
-#### 5. 性能优化建议
-
-- **降低物理精度**: 在低端安卓上减少钉子数量
-- **对象池**: 复用球体和粒子对象
-- **降低帧率**: 低端设备使用30fps
-- **延迟加载**: 关卡配置按需加载
-
-### 抖音小游戏适配
-
-与微信小游戏类似，主要差异：
-
-- API前缀从`wx`改为`tt`
-- 使用`tt.getSystemInfoSync()`
-- 广告API: `tt.createRewardedVideoAd()`
-
-### 包体大小限制
-
-- 微信小游戏: 
-  - 主包 ≤ 4MB
-  - 总包 ≤ 20MB（使用分包）
-- 抖音小游戏:
-  - 主包 ≤ 4MB
-  - 总包 ≤ 16MB
-
-**本项目当前包体**: ~500KB（gzip后），远低于限制 ✅
-
-### 测试检查清单
-
-- [ ] 存档读写（wx.setStorage / tt.setStorage）
-- [ ] 屏幕适配与安全区域
-- [ ] 触摸输入响应
-- [ ] 性能测试（低端安卓5.0+）
-- [ ] 分享功能
-- [ ] 激励视频广告
-- [ ] 用户登录授权
-- [ ] 横竖屏适配
-- [ ] 刘海屏/异形屏适配
+抖音小游戏接口与 `wx` 大体一致（前缀 `tt`），可照 `WeChatPlatform` 写 `DouyinPlatform`，未开始。
 
 ## 技术栈
 
@@ -440,7 +341,7 @@ python3 scripts/slice_sprites.py
 - [ ] 排行榜系统
 - [ ] 每日挑战
 - [ ] 成就系统
-- [ ] 微信小游戏适配
+- [ ] 微信小游戏：接入 weapp-adapter 并在开发者工具/真机验证（见 docs/wechat-minigame.md）
 - [ ] 抖音小游戏适配
 
 ## 许可证

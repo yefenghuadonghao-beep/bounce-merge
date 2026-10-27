@@ -172,4 +172,57 @@ describe('GameController', () => {
     expect(state.shotsRemaining).toBe(14);
     expect(state.combo).toBe(1);
   });
+  it('returns the actual awarded score after upgrades', () => {
+    controller.applyUpgrade({ id: 'score_boost', name: '', description: '', type: 'multiplier', value: 1.2 });
+    const result = controller.processMerge(1, 1000);
+    expect(result.score).toBe(30);
+    expect(controller.getGameState().score).toBe(result.score);
+  });
+
+  it('expires combos before a new merge even without an update tick', () => {
+    controller.processMerge(1, 1000);
+    const result = controller.processMerge(1, 4000);
+    expect(result.score).toBe(25);
+    expect(controller.getGameState().combo).toBe(1);
+  });
+
+});
+
+
+describe('run highlights', () => {
+  it('preserves highlights across stages, ignores expired combos, and resets for a new run', () => {
+    const controller = new GameController(mockBallLevels, mockLevelConfigs, mockGameConfig);
+    controller.processMerge(1, 100);
+    controller.processMerge(2, 200);
+    controller.processMerge(1, 10000);
+    expect(controller.getRunSummary()).toEqual({ merges: 3, bestCombo: 2, highest: 3 });
+    controller.advanceLevel();
+    expect(controller.getRunSummary().highest).toBe(3);
+    const summary = controller.getRunSummary();
+    summary.bestCombo = 999;
+    expect(controller.getRunSummary().bestCombo).toBe(2);
+    controller.reset();
+    expect(controller.getRunSummary()).toEqual({ merges: 0, bestCombo: 0, highest: 1 });
+  });
+});
+
+
+describe('level retry checkpoint', () => {
+  it('restores entry score, upgrades and shots without farming merge highlights', () => {
+    const controller = new GameController(mockBallLevels, mockLevelConfigs, mockGameConfig);
+    controller.processMerge(1, 100);
+    controller.applyUpgrade({ id: 'extra_shot', name: '', description: '', type: 'stat', value: 3 });
+    controller.advanceLevel();
+    const before = controller.getGameState();
+    const summary = controller.getRunSummary();
+    controller.processMerge(2, 200);
+    controller.useShot();
+    controller.retryLevel();
+    expect(controller.getGameState()).toEqual(before);
+    expect(controller.getRunSummary()).toEqual(summary);
+    controller.reset();
+    controller.retryLevel();
+    expect(controller.getGameState().currentLevel).toBe(1);
+    expect(controller.getGameState().upgrades).toHaveLength(0);
+  });
 });

@@ -22,7 +22,7 @@ export class MergeSystem {
     let score = config.score;
     
     if (combo > 1) {
-      score *= Math.pow(comboMultiplier, combo - 1);
+      score *= Math.pow(comboMultiplier, Math.min(combo - 1, 7));
       score += chainBonus * (combo - 1);
     }
 

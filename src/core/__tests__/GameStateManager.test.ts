@@ -152,4 +152,34 @@ describe('GameStateManager', () => {
     expect(state.shotsRemaining).toBe(15);
     expect(state.currentLevel).toBe(1);
   });
+  it('keeps extra shots across levels and stacks repeated choices', () => {
+    const upgrade: Upgrade = { id: 'extra_shot', name: '', description: '', type: 'stat', value: 1 };
+    manager.applyUpgrade(upgrade);
+    manager.advanceLevel();
+    expect(manager.getState().shotsRemaining).toBe(16);
+    manager.applyUpgrade(upgrade);
+    manager.advanceLevel();
+    expect(manager.getState().shotsRemaining).toBe(17);
+  });
+
+  it('does not consume shots below zero', () => {
+    for (let i = 0; i < 20; i++) manager.useShot();
+    expect(manager.getState().shotsRemaining).toBe(0);
+  });
+
+  it('clears combos at the start of the next level', () => {
+    manager.incrementCombo(1000);
+    manager.advanceLevel();
+    expect(manager.getState().combo).toBe(0);
+  });
+
+  it('continues increasing targets beyond configured levels', () => {
+    manager.advanceLevel();
+    manager.advanceLevel();
+    manager.addScore(2000);
+    manager.advanceLevel();
+    expect(manager.getLevelConfig()).toMatchObject({ level: 4, targetScore: 3000 });
+    expect(manager.hasReachedTarget()).toBe(false);
+  });
+
 });
