@@ -95,3 +95,29 @@ export interface ScoringConfig {
   comboDecayTime: number;
   comboMultiplier: number;
 }
+
+export interface AfterimageTrack {
+  id: number;
+  ballLevel: number;
+  segments: AfterimageSegment[];
+  createdAt: number;
+  opacity: number;
+}
+
+export interface AfterimageSegment {
+  x: number;
+  y: number;
+  timestamp: number;
+}
+
+export interface AfterimageConfig {
+  enabled: boolean;
+  maxTracks: number;
+  fadeAfterShots: number;
+  segmentInterval: number;
+  segmentThickness: number;
+  baseOpacity: number;
+  magnetRadius: number;
+  magnetRadiusMultipliers: { [level: number]: number };
+  mergeCheckInterval: number;
+}

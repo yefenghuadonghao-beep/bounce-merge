@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
 import { GameController } from '../core/GameController';
-import { GameConfig } from '../types';
+import { GameConfig, AfterimageConfig } from '../types';
 import { MergeCharge } from '../core/MergeCharge';
 import { ShotQueue } from '../core/ShotQueue';
+import { AfterimageSystem } from '../core/AfterimageSystem';
 import { assetUrl } from '../platform/assets';
 import characterAtlas from '../config/characterAtlas.json';
+import afterimageConfigData from '../config/afterimageConfig.json';
 import { button, characterNames, ink, panel, paper, FONT_FAMILY } from '../ui/theme';
 import { setupHiDpi } from '../ui/hidpi';
 import { getPlatform } from '../platform';
@@ -13,6 +15,13 @@ interface Ball {
   body: MatterJS.BodyType;
   sprite: Phaser.GameObjects.Arc | Phaser.GameObjects.Image;
   level: number;
+  trackId?: number;
+}
+
+interface AfterimagePhysics {
+  trackId: number;
+  bodies: MatterJS.BodyType[];
+  graphics: Phaser.GameObjects.Graphics;
 }
 
 export class MainScene extends Phaser.Scene {
@@ -43,6 +52,12 @@ export class MainScene extends Phaser.Scene {
   private pendingMerges: [Ball, Ball][] = [];
   private scorePopups: Phaser.GameObjects.Text[] = [];
   private comboText!: Phaser.GameObjects.Text;
+  private afterimageMode: boolean = false;
+  private noAutoTransition: boolean = false;
+  private afterimageSystem?: AfterimageSystem;
+  private afterimageConfig?: AfterimageConfig;
+  private afterimageGraphics: Map<number, AfterimagePhysics> = new Map();
+  private lastMergeCheck = 0;
   
   // 边界与收纳盒内沿对齐。
   private readonly RAIL_MARGIN = 50;
@@ -53,11 +68,18 @@ export class MainScene extends Phaser.Scene {
     super({ key: 'MainScene' });
   }
 
-  init(data: { gameController: GameController; gameConfig: GameConfig }) {
+  init(data: { gameController: GameController; gameConfig: GameConfig; afterimageMode?: boolean }) {
     this.gameController = data.gameController;
     this.gameConfig = data.gameConfig;
+    this.afterimageMode = data.afterimageMode ?? false;
     this.balls = [];
     this.charge = new MergeCharge();
+    
+    // 开发模式：禁用自动转场
+    if (import.meta.env.DEV) {
+      const urlParams = new URLSearchParams(window.location.search);
+      this.noAutoTransition = urlParams.get('debug') === 'noauto';
+    }
     this.isAiming = false;
     this.canShoot = true;
     this.shotStartedAt = 0;
@@ -65,6 +87,21 @@ export class MainScene extends Phaser.Scene {
     this.resolving = false;
     this.pendingMerges = [];
     this.scorePopups = [];
+    this.afterimageGraphics.clear();
+    this.lastMergeCheck = 0;
+    
+    if (this.afterimageMode) {
+      this.afterimageConfig = afterimageConfigData as AfterimageConfig;
+      this.afterimageSystem = new AfterimageSystem(this.afterimageConfig, {
+        onMerge: (track1Id, track2Id, newLevel, x, y) => {
+          this.handleAfterimageMerge(track1Id, track2Id, newLevel, x, y);
+        },
+        onFade: (trackId) => {
+          this.removeAfterimagePhysics(trackId);
+        }
+      });
+    }
+    
     const state = this.gameController.getGameState();
     const stage = this.gameController.getLevelConfig();
     const target = stage.targetBallLevel ?? 3;
@@ -91,11 +128,14 @@ export class MainScene extends Phaser.Scene {
 
     paper(this);
     panel(this, 45, 220, 630, 880, 0xfffcf2);
-    this.add.text(82, 246, '第一章 · 打工日常', { fontFamily: FONT_FAMILY, fontSize: '23px', color: ink, fontStyle: 'bold' });
-    this.add.text(360, 800, this.gameController.getLevelConfig().title ?? '碰一碰就下班', {
+    const chapterTitle = this.afterimageMode ? '残影模式 · 轨迹成路' : '第一章 · 打工日常';
+    this.add.text(82, 246, chapterTitle, { fontFamily: FONT_FAMILY, fontSize: '23px', color: ink, fontStyle: 'bold' });
+    const stageTitle = this.afterimageMode ? '残影弹珠' : (this.gameController.getLevelConfig().title ?? '碰一碰就下班');
+    this.add.text(360, 800, stageTitle, {
       fontFamily: FONT_FAMILY, fontSize: '34px', color: '#d5cbb9', align: 'center', lineSpacing: 16
     }).setOrigin(0.5);
-    this.add.text(360, 930, '同款相碰升级 · 用完发射前达成目标', { fontFamily: FONT_FAMILY, fontSize: '21px', color: '#c1b49e' }).setOrigin(0.5);
+    const subtitle = this.afterimageMode ? '轨迹变实体 · 同型残影磁吸合并' : '同款相碰升级 · 用完发射前达成目标';
+    this.add.text(360, 930, subtitle, { fontFamily: FONT_FAMILY, fontSize: '21px', color: '#c1b49e' }).setOrigin(0.5);
     this.createPegBoard();
     this.createUI();
     this.createAimingLine();
@@ -119,7 +159,8 @@ export class MainScene extends Phaser.Scene {
       const seed = presets[i];
       this.spawnBall(seed.x, seed.y, seed.level);
     }
-    this.uiTexts.hint.setText(stage.hint ?? '按住瞄准，松开发射');
+    const defaultHint = this.afterimageMode ? '按住瞄准发射 · 轨迹变障碍物' : '按住瞄准，松开发射';
+    this.uiTexts.hint.setText(stage.hint ?? defaultHint);
     this.updateUI();
     const retry = this.add.text(82, 287, '重试本关', { fontFamily: FONT_FAMILY, fontSize: '20px', color: ink, backgroundColor: '#eee6d5', padding: { x: 8, y: 6 } }).setInteractive({ useHandCursor: true });
     retry.on('pointerdown', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
@@ -127,7 +168,7 @@ export class MainScene extends Phaser.Scene {
       if (this.resolving) return;
       this.resolving = true;
       this.gameController.retryLevel();
-      this.scene.restart({ gameController: this.gameController, gameConfig: this.gameConfig });
+      this.scene.restart({ gameController: this.gameController, gameConfig: this.gameConfig, afterimageMode: this.afterimageMode });
     });
     const sound = this.add.text(650, 244, this.platform.isSoundEnabled() ? '音效 开' : '音效 关', {
       fontFamily: FONT_FAMILY, fontSize: '21px', color: ink, backgroundColor: '#fff8ef', padding: { x: 12, y: 10 }
@@ -144,6 +185,36 @@ export class MainScene extends Phaser.Scene {
     // 调试：?debug=seed 铺满 1-10 级角色；仅开发构建调用，正式包不会读取 URL。
     if (import.meta.env.DEV) this.checkDebugMode();
   }
+
+  debugFire(angle: number, level?: number) {
+    if (!import.meta.env.DEV) return;
+    
+    // 调试发射：忽略canShoot和resolving，使用提供的level或队列里的下一个
+    this.resolving = false;
+    const ballLevel = level ?? this.shotQueue.peek()[0] ?? 1;
+    const ball = this.spawnBall(this.gameConfig.launcher.startX, this.gameConfig.launcher.startY, ballLevel);
+    if (!ball) return;
+
+    const speed = this.gameConfig.launcher.launchForce * 1000;
+    this.matter.body.setVelocity(ball.body, {
+      x: Math.cos(angle) * speed,
+      y: Math.sin(angle) * speed
+    });
+    
+    if (this.shotQueue.peek()[0]) {
+      this.shotQueue.take();
+      this.gameController.useShot();
+    }
+    this.updateUI();
+    this.settledSince = null;
+    
+    // 短暂延迟后恢复canShoot，允许连续调试发射
+    this.canShoot = false;
+    this.time.delayedCall(500, () => {
+      this.canShoot = true;
+      this.launcherPreview?.setAlpha(1);
+    });
+  }
   
   private checkDebugMode() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -158,7 +229,7 @@ export class MainScene extends Phaser.Scene {
   }
   
   private seedDebugBalls() {
-    console.log('Debug mode: Seeding balls of levels 1-10');
+    if (import.meta.env.DEV) console.log('Debug mode: Seeding balls of levels 1-10');
     
     const positions = [
       { x: 200, y: 400, level: 1 },
@@ -561,6 +632,16 @@ export class MainScene extends Phaser.Scene {
       const remaining = Math.max(0, 1 - (time - state.comboTimer) / this.gameConfig.scoring.comboDecayTime);
       this.comboBar?.fillStyle(0xee976e).fillRect(240, 436, 240 * remaining, 5);
     }
+    
+    if (this.afterimageMode) {
+      this.updateAfterimages();
+      
+      if (this.afterimageSystem && this.afterimageConfig && time - this.lastMergeCheck > this.afterimageConfig.mergeCheckInterval) {
+        this.lastMergeCheck = time;
+        this.checkAfterimageGlobalMerges();
+      }
+    }
+    
     this.matchRings?.clear();
     if (this.isAiming) {
       const next = this.shotQueue.at(0);
@@ -593,10 +674,14 @@ export class MainScene extends Phaser.Scene {
       this.aimArrow?.setVisible(false);
       this.uiTexts.hint?.setText('情绪释放成功！领取一份小福利');
       this.showVictory();
-      this.time.delayedCall(1700, () => {
-        const destination = this.gameController.getLevelConfig().chapterEnd ? 'GameOverScene' : 'UpgradeScene';
-        this.scene.start(destination, { gameController: this.gameController, gameConfig: this.gameConfig, won: true });
-      });
+      
+      // 开发模式下可禁用自动转场
+      if (!this.noAutoTransition) {
+        this.time.delayedCall(1700, () => {
+          const destination = this.gameController.getLevelConfig().chapterEnd ? 'GameOverScene' : 'UpgradeScene';
+          this.scene.start(destination, { gameController: this.gameController, gameConfig: this.gameConfig, won: true, afterimageMode: this.afterimageMode });
+        });
+      }
       return;
     }
 
@@ -623,6 +708,135 @@ export class MainScene extends Phaser.Scene {
     const rescueDelay = this.shakesRemaining > 0 ? 2500 : 700;
     if (time - this.settledSince < rescueDelay) return;
     this.resolving = true;
-    this.scene.start('GameOverScene', { gameController: this.gameController, gameConfig: this.gameConfig, won: false });
+    this.scene.start('GameOverScene', { gameController: this.gameController, gameConfig: this.gameConfig, won: false, afterimageMode: this.afterimageMode });
+  }
+
+  private trackBallMovement(ball: Ball) {
+    if (!this.afterimageMode || !this.afterimageSystem) return;
+    
+    if (ball.trackId === undefined) {
+      ball.trackId = this.afterimageSystem.startTracking(ball.level);
+    }
+    
+    this.afterimageSystem.addSegment(ball.trackId, ball.sprite.x, ball.sprite.y, this.time.now);
+  }
+
+  private finalizeBallTrack(ball: Ball) {
+    if (!this.afterimageMode || !this.afterimageSystem || ball.trackId === undefined) return;
+    
+    const success = this.afterimageSystem.finalizeTrack(ball.trackId);
+    if (success) {
+      this.createAfterimagePhysics(ball.trackId);
+    }
+    ball.trackId = undefined;
+  }
+
+  private createAfterimagePhysics(trackId: number) {
+    if (!this.afterimageSystem || !this.afterimageConfig) return;
+    
+    const track = this.afterimageSystem.getTrack(trackId);
+    if (!track || track.segments.length < 2) return;
+
+    const graphics = this.add.graphics().setDepth(3);
+    const bodies: MatterJS.BodyType[] = [];
+    const ballConfig = this.gameController.getBallConfig(track.ballLevel);
+    if (!ballConfig) return;
+
+    for (let i = 0; i < track.segments.length - 1; i++) {
+      const seg1 = track.segments[i];
+      const seg2 = track.segments[i + 1];
+      const dx = seg2.x - seg1.x;
+      const dy = seg2.y - seg1.y;
+      const length = Math.sqrt(dx * dx + dy * dy);
+      const angle = Math.atan2(dy, dx);
+      const midX = (seg1.x + seg2.x) / 2;
+      const midY = (seg1.y + seg2.y) / 2;
+
+      const body = this.matter.add.rectangle(midX, midY, length, this.afterimageConfig.segmentThickness, {
+        isStatic: true,
+        angle,
+        restitution: 0.6,
+        label: `afterimage_${trackId}`
+      });
+      bodies.push(body);
+    }
+
+    this.afterimageGraphics.set(trackId, { trackId, bodies, graphics });
+    this.renderAfterimage(trackId);
+  }
+
+  private renderAfterimage(trackId: number) {
+    if (!this.afterimageSystem || !this.afterimageConfig) return;
+    
+    const physics = this.afterimageGraphics.get(trackId);
+    const track = this.afterimageSystem.getTrack(trackId);
+    if (!physics || !track) return;
+
+    const ballConfig = this.gameController.getBallConfig(track.ballLevel);
+    if (!ballConfig) return;
+
+    physics.graphics.clear();
+    physics.graphics.lineStyle(this.afterimageConfig.segmentThickness, ballConfig.color, track.opacity);
+
+    for (let i = 0; i < track.segments.length - 1; i++) {
+      const seg1 = track.segments[i];
+      const seg2 = track.segments[i + 1];
+      physics.graphics.lineBetween(seg1.x, seg1.y, seg2.x, seg2.y);
+    }
+  }
+
+  private removeAfterimagePhysics(trackId: number) {
+    const physics = this.afterimageGraphics.get(trackId);
+    if (!physics) return;
+
+    for (const body of physics.bodies) {
+      this.matter.world.remove(body);
+    }
+    physics.graphics.destroy();
+    this.afterimageGraphics.delete(trackId);
+  }
+
+  private handleAfterimageMerge(track1Id: number, track2Id: number, newLevel: number, x: number, y: number) {
+    this.removeAfterimagePhysics(track1Id);
+    this.removeAfterimagePhysics(track2Id);
+
+    const result = this.gameController.processMerge(newLevel - 1, this.time.now);
+    this.showScorePopup(x, y, result.score, newLevel);
+    this.createMergeEffect(x, y, this.gameController.getBallConfig(newLevel)?.color ?? 0xffffff);
+    this.platform.playSound(`merge_${newLevel}_1`);
+
+    this.time.delayedCall(100, () => {
+      const newTrackId = Array.from(this.afterimageSystem?.getTracks().keys() ?? [])
+        .find(id => id !== track1Id && id !== track2Id && !this.afterimageGraphics.has(id));
+      if (newTrackId !== undefined) {
+        this.createAfterimagePhysics(newTrackId);
+      }
+    });
+  }
+
+  private checkAfterimageGlobalMerges() {
+    if (!this.afterimageSystem) return;
+
+    const merges = this.afterimageSystem.checkMerges();
+    for (const merge of merges) {
+      this.afterimageSystem.processMerge(merge.track1Id, merge.track2Id, merge.newLevel, merge.x, merge.y);
+    }
+  }
+
+  private updateAfterimages() {
+    if (!this.afterimageMode || !this.afterimageSystem) return;
+
+    for (const ball of this.balls) {
+      const isMoving = !ball.body.isSleeping && Math.hypot(ball.body.velocity.x, ball.body.velocity.y) > 0.5;
+      if (isMoving) {
+        this.trackBallMovement(ball);
+      } else if (ball.trackId !== undefined) {
+        this.finalizeBallTrack(ball);
+      }
+    }
+
+    for (const [trackId] of this.afterimageGraphics) {
+      this.renderAfterimage(trackId);
+    }
   }
 }

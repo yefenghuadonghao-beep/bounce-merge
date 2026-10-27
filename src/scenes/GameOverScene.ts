@@ -8,6 +8,7 @@ import { setupHiDpi } from '../ui/hidpi';
 export class GameOverScene extends Phaser.Scene {
   private gameController!: GameController;
   private gameConfig!: GameConfig;
+  private afterimageMode: boolean = false;
   private restarting = false;
   private won = false;
 
@@ -15,9 +16,10 @@ export class GameOverScene extends Phaser.Scene {
     super({ key: 'GameOverScene' });
   }
 
-  init(data: { gameController: GameController; gameConfig: GameConfig; won?: boolean }) {
+  init(data: { gameController: GameController; gameConfig: GameConfig; won?: boolean; afterimageMode?: boolean }) {
     this.gameController = data.gameController;
     this.gameConfig = data.gameConfig;
+    this.afterimageMode = data.afterimageMode ?? false;
     this.restarting = false;
     this.won = data.won ?? false;
   }
@@ -43,7 +45,7 @@ export class GameOverScene extends Phaser.Scene {
       if (this.restarting) return;
       this.restarting = true;
       this.gameController.retryLevel();
-      this.scene.start('MainScene', { gameController: this.gameController, gameConfig: this.gameConfig });
+      this.scene.start('MainScene', { gameController: this.gameController, gameConfig: this.gameConfig, afterimageMode: this.afterimageMode });
     });
     this.saveRecord(record);
   }
@@ -62,6 +64,6 @@ export class GameOverScene extends Phaser.Scene {
     if (this.restarting) return;
     this.restarting = true;
     this.gameController.reset();
-    this.scene.start('MainScene', { gameController: this.gameController, gameConfig: this.gameConfig });
+    this.scene.start('MainScene', { gameController: this.gameController, gameConfig: this.gameConfig, afterimageMode: this.afterimageMode });
   }
 }

@@ -10,15 +10,17 @@ const upgrades = upgradesData as Upgrade[];
 export class UpgradeScene extends Phaser.Scene {
   private gameController!: GameController;
   private gameConfig!: GameConfig;
+  private afterimageMode: boolean = false;
   private selecting = false;
 
   constructor() {
     super({ key: 'UpgradeScene' });
   }
 
-  init(data: { gameController: GameController; gameConfig: GameConfig }) {
+  init(data: { gameController: GameController; gameConfig: GameConfig; afterimageMode?: boolean }) {
     this.gameController = data.gameController;
     this.gameConfig = data.gameConfig;
+    this.afterimageMode = data.afterimageMode ?? false;
     this.selecting = false;
   }
 
@@ -69,7 +71,7 @@ export class UpgradeScene extends Phaser.Scene {
     this.gameController.advanceLevel();
     this.cameras.main.fadeOut(220, 244, 239, 223);
     this.time.delayedCall(220, () => {
-      this.scene.start('MainScene', { gameController: this.gameController, gameConfig: this.gameConfig });
+      this.scene.start('MainScene', { gameController: this.gameController, gameConfig: this.gameConfig, afterimageMode: this.afterimageMode });
     });
   }
 }

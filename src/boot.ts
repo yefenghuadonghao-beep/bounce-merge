@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { HomeScene } from './scenes/HomeScene';
 import { MainScene } from './scenes/MainScene';
 import { UpgradeScene } from './scenes/UpgradeScene';
 import { GameOverScene } from './scenes/GameOverScene';
@@ -34,7 +35,7 @@ export interface BootResult {
   gameController: GameController;
   gameConfig: GameConfig;
   renderScale: number;
-  startScene(key: 'MainScene' | 'UpgradeScene', advanceLevels?: number): void;
+  startScene(key: 'HomeScene' | 'MainScene' | 'UpgradeScene', advanceLevels?: number, afterimageMode?: boolean): void;
 }
 
 // 字体就绪后再创建游戏，避免首帧先用 Courier/系统字体排版再跳变；最多等 3 秒，失败时用系统字体兜底。
@@ -91,6 +92,7 @@ export async function boot(options: BootOptions): Promise<BootResult> {
 
   const game = new Phaser.Game(phaserConfig);
   // 手动注册且不自动启动：放进 config.scene 时第一个场景会在没有 data 的情况下先启动。
+  game.scene.add('HomeScene', HomeScene, false);
   game.scene.add('MainScene', MainScene, false);
   game.scene.add('UpgradeScene', UpgradeScene, false);
   game.scene.add('GameOverScene', GameOverScene, false);
@@ -103,9 +105,9 @@ export async function boot(options: BootOptions): Promise<BootResult> {
     gameController,
     gameConfig,
     renderScale,
-    startScene(key, advanceLevels = 0) {
+    startScene(key, advanceLevels = 0, afterimageMode = false) {
       for (let i = 0; i < advanceLevels; i++) gameController.advanceLevel();
-      game.scene.start(key, sceneData);
+      game.scene.start(key, { ...sceneData, afterimageMode });
     }
   };
 }
