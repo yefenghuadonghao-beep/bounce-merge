@@ -96,9 +96,9 @@ export class AfterimageSystem {
     this.events.onFade?.(id);
   }
 
-  clearSettledTracks(): void {
+  clearSettledTracks(preserveCores = false): void {
     const tracks = Array.from(this.tracks.values());
-    for (let i = 0; i < tracks.length; i++) if (tracks[i].finalized) this.removeTrack(tracks[i].id);
+    for (let i = 0; i < tracks.length; i++) if (tracks[i].finalized && (!preserveCores || tracks[i].segments.length > 1)) this.removeTrack(tracks[i].id);
   }
 
   private match(first: AfterimageTrack, second: AfterimageTrack) {

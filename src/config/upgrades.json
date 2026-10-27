@@ -2,7 +2,7 @@
   {
     "id": "plan_supply",
     "name": "弹药储备",
-    "description": "多两次发射，把差一口的合成补齐",
+    "description": "补充弹药，为最后一次合成留一手",
     "type": "stat",
     "value": 2,
     "scope": "next_level"
@@ -10,7 +10,7 @@
   {
     "id": "plan_control",
     "name": "排班高手",
-    "description": "看后两球，轮换前三球的出场顺序",
+    "description": "点选后两球或轮换三球，控制出场顺序",
     "type": "passive",
     "value": 2,
     "scope": "next_level"

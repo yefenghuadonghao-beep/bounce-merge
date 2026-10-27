@@ -21,12 +21,11 @@ describe('next-level battle plans', () => {
   });
 
   it('introduces three different tradeoffs at classic level five and shadow level three', () => {
-    const stages = [levels[4], shadows[2]];
-    for (let i = 0; i < stages.length; i++) {
-      expect(battlePlanEffects(plans[0], stages[i])).toMatchObject({ shots: 2, shakes: -1 });
-      expect(battlePlanEffects(plans[1], stages[i])).toMatchObject({ shots: -1, swaps: 2, rotateQueue: true });
-      expect(battlePlanEffects(plans[2], stages[i])).toMatchObject({ shakes: 1, swaps: -1, chargeThreshold: 3 });
-    }
+    expect(battlePlanEffects(plans[0], levels[4])).toMatchObject({ shots: 1, swaps: -1, shakes: 0 });
+    expect(battlePlanEffects(plans[0], shadows[2])).toMatchObject({ shots: 2, swaps: -1, shakes: 0 });
+    expect(battlePlanEffects(plans[1], levels[4])).toMatchObject({ shots: 0, swaps: 2, rotateQueue: true, chargeLimit: 2 });
+    expect(battlePlanEffects(plans[2], levels[4])).toMatchObject({ shakes: 1, swaps: -1, chargeThreshold: 3, preserveCores: true, refundSwapOnCharge: true });
+    expect(battlePlanEffects(plans[2], shadows[2])).toMatchObject({ shakes: 1, swaps: 0, chargeThreshold: 3, chargeLimit: 2, preserveCores: true, refundSwapOnCharge: false });
   });
 
   it('activates after advancing, survives retry and expires on the following level', () => {
@@ -52,7 +51,7 @@ describe('next-level battle plans', () => {
     controller.advanceLevel();
     controller.applyUpgrade(plans[1]);
     controller.advanceLevel();
-    expect(controller.getGameState().shotsRemaining).toBe(levels[5].shots - 1);
+    expect(controller.getGameState().shotsRemaining).toBe(levels[5].shots);
     controller.retryLevel();
     expect(controller.getGameState().activePlan?.id).toBe('plan_control');
     controller.reset();
@@ -76,4 +75,22 @@ describe('next-level battle plans', () => {
     for (let i = 0; i < 20; i++) charge.add(3);
     expect(charge.rewards).toBe(3);
   });
+  it('can directly choose either preview ball without destroying the original queue', () => {
+    const queue = new ShotQueue(1, 9, Math.random, [1, 2, 3, 4]);
+    queue.swap(2);
+    expect(queue.peek()).toEqual([3, 2, 1]);
+    queue.swap(1);
+    expect(queue.peek()).toEqual([2, 3, 1]);
+    expect([queue.take(), queue.take(), queue.take(), queue.take()]).toEqual([2, 3, 1, 4]);
+  });
+
+  it('caps the control plan at two charge rewards without reducing its initial shots or rescues', () => {
+    const effects = battlePlanEffects(plans[1], levels[7]);
+    const charge = new MergeCharge(effects.chargeThreshold, effects.chargeLimit);
+    for (let i = 0; i < 30; i++) charge.add(3);
+    expect(charge.rewards).toBe(2);
+    expect(effects.shots).toBe(0);
+    expect(effects.shakes).toBe(0);
+  });
+
 });

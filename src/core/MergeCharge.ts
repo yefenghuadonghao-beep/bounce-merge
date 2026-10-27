@@ -2,8 +2,7 @@
 export class MergeCharge {
   charge = 0;
   rewards = 0;
-  constructor(readonly threshold = 4) {}
-  readonly limit = 3;
+  constructor(readonly threshold = 4, readonly limit = 3) {}
 
   add(combo: number): boolean {
     if (this.rewards >= this.limit) return false;

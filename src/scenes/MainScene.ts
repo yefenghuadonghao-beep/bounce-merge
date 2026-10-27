@@ -123,7 +123,7 @@ export class MainScene extends Phaser.Scene {
     const plan = battlePlanEffects(state.activePlan, stage);
     this.shakesRemaining += plan.shakes;
     this.swapsRemaining += plan.swaps;
-    this.charge = new MergeCharge(plan.chargeThreshold);
+    this.charge = new MergeCharge(plan.chargeThreshold, plan.chargeLimit);
     this.rotateQueue = plan.rotateQueue;
     this.thirdPreview = undefined;
     const upgrades = state.upgrades;
@@ -365,10 +365,19 @@ export class MainScene extends Phaser.Scene {
     this.uiTexts.goal = this.add.text(126, 86, `合出${characterNames[target]}`, { fontFamily: FONT_FAMILY, fontSize: '27px', color: ink, fontStyle: 'bold' });
     this.uiTexts.progress = this.add.text(126, 130, '', { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#8b7c64' });
     this.uiTexts.shots = this.add.text(48, 168, '', { fontFamily: FONT_FAMILY, fontSize: '21px', color: ink });
-    this.add.text(606, 78, this.rotateQueue ? '后两位' : '下一位', { fontFamily: FONT_FAMILY, fontSize: '18px', color: '#8b7c64' }).setOrigin(0.5);
+    this.add.text(606, 78, this.rotateQueue ? '点选换球' : '下一位', { fontFamily: FONT_FAMILY, fontSize: '18px', color: '#8b7c64' }).setOrigin(0.5);
     this.nextPreview = this.add.image(606, 129, 'characters', `ball_${this.shotQueue.peek()[1]}`).setDisplaySize(50, 50);
     if (this.rotateQueue) {
-      this.thirdPreview = this.add.image(662, 129, 'characters', `ball_${this.shotQueue.at(2)}`).setDisplaySize(38, 38);
+      this.nextPreview.setPosition(566, 129);
+      this.thirdPreview = this.add.image(650, 129, 'characters', `ball_${this.shotQueue.at(2)}`).setDisplaySize(50, 50);
+      const previews = [this.nextPreview, this.thirdPreview];
+      for (let i = 0; i < previews.length; i++) {
+        previews[i].setInteractive({ useHandCursor: true });
+        previews[i].on('pointerdown', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+          event.stopPropagation();
+          this.swapBall(i + 1);
+        });
+      }
     }
     const plan = this.gameController.getGameState().activePlan;
     this.add.text(666, 168, plan ? `本关战术：${plan.name}` : '先熟悉弹道，再选战术', { fontFamily: FONT_FAMILY, fontSize: '19px', color: '#8b6041' }).setOrigin(1, 0);
@@ -395,7 +404,7 @@ export class MainScene extends Phaser.Scene {
     this.swapLabel?.parentContainer?.setAlpha(this.swapsRemaining > 0 ? 1 : 0.45);
     if (this.uiTexts.charge) {
       const full = this.charge.rewards >= this.charge.limit;
-      this.uiTexts.charge.setText(full ? '本关充能奖励已领满' : `抱团充能 ${this.charge.charge}/${this.charge.threshold} · 3 连合后双倍充能`);
+      this.uiTexts.charge.setText(full ? '本关充能奖励已领满' : `充能 ${this.charge.charge}/${this.charge.threshold} · 3 连合双倍 · 奖励 ${this.charge.rewards}/${this.charge.limit}`);
       this.chargeBar?.clear().fillStyle(0xe6decd).fillRoundedRect(180, 360, 360, 8, 4);
       const progress = full ? 1 : this.charge.charge / this.charge.threshold;
       if (progress > 0) this.chargeBar?.fillStyle(0xee976e).fillRoundedRect(180, 360, 360 * progress, 8, 4);
@@ -411,15 +420,18 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  private swapBall() {
+  private swapBall(slot?: number) {
     if (this.resolving || this.swapsRemaining <= 0 || !this.canShoot) return;
     const samePair = this.shotQueue.at(0) === this.shotQueue.at(1);
     const sameQueue = samePair && (!this.rotateQueue || this.shotQueue.at(0) === this.shotQueue.at(2));
-    if (sameQueue) {
+    if (slot !== undefined && !this.rotateQueue) return;
+    const sameSelected = slot !== undefined && this.shotQueue.at(0) === this.shotQueue.at(slot);
+    if (sameQueue || sameSelected) {
       this.uiTexts.hint.setText('可换的都是同款，留着机会给下一次吧');
       return;
     }
-    if (this.rotateQueue) this.shotQueue.rotate();
+    if (slot !== undefined) this.shotQueue.swap(slot);
+    else if (this.rotateQueue) this.shotQueue.rotate();
     else this.shotQueue.swap();
     this.swapsRemaining--;
     this.updateUI();
@@ -429,7 +441,8 @@ export class MainScene extends Phaser.Scene {
   private shakeBoard() {
     if (this.resolving || this.shakesRemaining <= 0 || this.balls.length === 0) return;
     this.shakesRemaining--;
-    this.afterimageSystem?.clearSettledTracks();
+    const plan = battlePlanEffects(this.gameController.getGameState().activePlan, this.gameController.getLevelConfig());
+    this.afterimageSystem?.clearSettledTracks(plan.preserveCores);
     const balls = this.balls;
     for (let i = 0, length = balls.length; i < length; i++) {
       const body = balls[i].body;
@@ -580,7 +593,9 @@ export class MainScene extends Phaser.Scene {
     this.platform.playSound(`merge_${newLevel}_${state.combo}`);
     if (this.charge.add(state.combo)) {
       this.shakesRemaining++;
-      const reward = this.add.text(360, 460, '充满了！抱团取暖 +1', {
+      const refunded = this.refundPlanSwap();
+      const rewardText = refunded ? '抱团 +1 · 换球返还 +1' : '充满了！抱团取暖 +1';
+      const reward = this.add.text(360, 460, rewardText, {
         fontFamily: FONT_FAMILY, fontSize: '30px', color: '#547044', backgroundColor: '#fff9e7', padding: { x: 16, y: 10 }
       }).setOrigin(0.5).setDepth(15);
       this.tweens.add({ targets: reward, y: 420, alpha: 0, delay: 850, duration: 450, onComplete: () => reward.destroy() });
@@ -603,6 +618,13 @@ export class MainScene extends Phaser.Scene {
     this.settledSince = null;
 
     this.updateUI();
+  }
+
+  private refundPlanSwap() {
+    const plan = battlePlanEffects(this.gameController.getGameState().activePlan, this.gameController.getLevelConfig());
+    const refund = plan.refundSwapOnCharge && this.charge.rewards === 1;
+    if (refund) this.swapsRemaining++;
+    return refund;
   }
 
   private removeBall(ball: Ball) {
@@ -875,12 +897,18 @@ export class MainScene extends Phaser.Scene {
     const result = this.gameController.processMerge(newLevel - 1, this.time.now);
     const combo = this.gameController.getGameState().combo;
     const charged = this.charge.add(combo);
-    if (charged) this.shakesRemaining++;
+    let refunded = false;
+    if (charged) {
+      this.shakesRemaining++;
+      refunded = this.refundPlanSwap();
+    }
     this.showScorePopup(x, y, result.score, newLevel);
     this.createMergeEffect(x, y, this.gameController.getBallConfig(newLevel)?.color ?? 0xffffff);
     this.cameras.main.shake(100, Math.min(0.007, 0.002 * combo));
     this.platform.playSound(`merge_${newLevel}_${combo}`);
-    const feedback = charged ? '充能满了！清影抱团 +1' : `残影共鸣！${characterNames[newLevel]}留下来了`;
+    let feedback = `残影共鸣！${characterNames[newLevel]}留下来了`;
+    if (charged) feedback = '充能满了！清影抱团 +1';
+    if (refunded) feedback = '充能完成！抱团 +1 · 换球返还 +1';
     this.uiTexts.hint?.setText(feedback);
     this.settledSince = null;
     this.updateUI();

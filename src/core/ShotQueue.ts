@@ -23,8 +23,9 @@ export class ShotQueue {
     return level;
   }
 
-  swap(): void {
-    [this.queue[0], this.queue[1]] = [this.queue[1], this.queue[0]];
+  swap(index = 1): void {
+    if (index < 1 || index > 2) return;
+    [this.queue[0], this.queue[index]] = [this.queue[index], this.queue[0]];
   }
 
   rotate(): void {

@@ -329,4 +329,18 @@ describe('AfterimageSystem', () => {
     expect(system.getTrack(id)?.segments.length).toBeLessThanOrEqual(8);
   });
 
+  it('chain rescue keeps fused cores and active recordings but clears ordinary solid paths', () => {
+    const a = track(1);
+    const b = track(1);
+    const core = system.processMerge(a, b, 2, 100, 200)!;
+    const path = track(3);
+    const active = track(4, 100, false);
+    system.clearSettledTracks(true);
+    expect(system.getTrack(core)).toBeDefined();
+    expect(system.getTrack(active)).toBeDefined();
+    expect(system.getTrack(path)).toBeUndefined();
+    system.clearSettledTracks();
+    expect(system.getTrack(core)).toBeUndefined();
+  });
+
 });

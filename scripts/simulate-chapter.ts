@@ -19,7 +19,13 @@ const Composite = require('phaser/src/physics/matter-js/lib/body/Composite') as 
 const Sleeping = require('phaser/src/physics/matter-js/lib/core/Sleeping') as typeof MatterJS.Sleeping;
 const Events = require('phaser/src/physics/matter-js/lib/core/Events') as { on: (engine: MatterJS.Engine, name: string, callback: (event: { pairs: { bodyA: MatterJS.BodyType; bodyB: MatterJS.BodyType }[] }) => void) => void };
 
-export function simulateStage(stage: number, angles: number[], rescue = false, afterimage = false, planId = '') {
+export interface PlayActions {
+  swaps?: number[];
+  pickSlots?: number[];
+  rescueAfterShots?: number[];
+}
+
+export function simulateStage(stage: number, angles: number[], rescue = false, afterimage = false, planId = '', actions: PlayActions = {}) {
   const levels = afterimage ? shadowLevels : classicLevels;
   const level = levels[stage - 1];
   const controller = new GameController(balls, levels, config);
@@ -35,7 +41,7 @@ export function simulateStage(stage: number, angles: number[], rescue = false, a
   const engine = Engine.create({ enableSleeping: true }) as MatterJS.Engine & { world: MatterJS.CompositeType; gravity: { y: number } };
   engine.gravity.y = config.physics.gravity;
   const active = new Map<MatterJS.BodyType, number>();
-  const charge = new MergeCharge(effects.chargeThreshold);
+  const charge = new MergeCharge(effects.chargeThreshold, effects.chargeLimit);
   let shakes = level.shakes + effects.shakes;
   let pending: [MatterJS.BodyType, MatterJS.BodyType][] = [];
   let shadowMerges = 0;
@@ -56,7 +62,10 @@ export function simulateStage(stage: number, angles: number[], rescue = false, a
       createPath(id);
       shadowMerges++;
       controller.processMerge(level - 1, now);
-      if (charge.add(controller.getGameState().combo)) shakes++;
+      if (charge.add(controller.getGameState().combo)) {
+        shakes++;
+        if (effects.refundSwapOnCharge && charge.rewards === 1) swaps++;
+      }
     }
   });
   function createPath(id: number) {
@@ -106,11 +115,30 @@ export function simulateStage(stage: number, angles: number[], rescue = false, a
   });
   let shots = 0;
   let rescues = 0;
+  let lateRescues = 0;
+  let swaps = level.swaps + effects.swaps;
+  let swapsUsed = 0;
   let settledSince: number | null = null;
   let lastShot = 0;
   for (let frame = 0; frame < 2100; frame++) {
     now = frame * 1000 / 60;
     if (frame >= 90 && (frame - 90) % 90 === 0 && shots < angles.length && controller.getGameState().shotsRemaining > 0) {
+      const slot = actions.pickSlots?.[shots] ?? 0;
+      const selectable = slot === 1 || (slot === 2 && effects.rotateQueue);
+      if (selectable && swaps > 0 && queue.at(0) !== queue.at(slot)) {
+        queue.swap(slot);
+        swaps--;
+        swapsUsed++;
+      }
+      const turns = actions.swaps?.[shots] ?? 0;
+      for (let turn = 0; turn < turns && swaps > 0; turn++) {
+        const samePair = queue.at(0) === queue.at(1);
+        if (samePair && (!effects.rotateQueue || queue.at(0) === queue.at(2))) break;
+        if (effects.rotateQueue) queue.rotate();
+        else queue.swap();
+        swaps--;
+        swapsUsed++;
+      }
       const angle = angles[shots];
       const body = spawn(360, 270, queue.take());
       Body.setVelocity(body, { x: Math.cos(angle) * 12, y: Math.sin(angle) * 12 });
@@ -124,8 +152,11 @@ export function simulateStage(stage: number, angles: number[], rescue = false, a
       lastShot = frame;
       shots++;
     }
-    if (rescue && shakes > 0 && frame === 90 + angles.length * 90 + rescues * 150) {
-      if (afterimage) shadows.clearSettledTracks();
+    const midRescue = frame === 90 + (shots - 1) * 90 + 45 && (actions.rescueAfterShots ?? []).includes(shots);
+    const finalRescue = rescue && frame === 90 + angles.length * 90 + lateRescues * 150;
+    if (shakes > 0 && (midRescue || finalRescue)) {
+      if (finalRescue) lateRescues++;
+      if (afterimage) shadows.clearSettledTracks(effects.preserveCores);
       const bodies = [...active.keys()];
       for (let i = 0; i < bodies.length; i++) {
         Sleeping.set(bodies[i], false);
@@ -160,7 +191,10 @@ export function simulateStage(stage: number, angles: number[], rescue = false, a
       const [a, b] = merges[i];
       if (!active.has(a) || !active.has(b)) continue;
       const result = controller.processMerge(active.get(a)!, frame * 1000 / 60);
-      if (charge.add(controller.getGameState().combo)) shakes++;
+      if (charge.add(controller.getGameState().combo)) {
+        shakes++;
+        if (effects.refundSwapOnCharge && charge.rewards === 1) swaps++;
+      }
       const x = (a.position.x + b.position.x) / 2;
       const y = (a.position.y + b.position.y) / 2;
       finalize(a);
@@ -172,7 +206,7 @@ export function simulateStage(stage: number, angles: number[], rescue = false, a
       settledSince = null;
     }
     const shadowGoal = !afterimage || shadowMerges >= shadowLevels[stage - 1].requiredAfterimageMerges;
-    if (controller.checkLevelComplete() === 'win' && shadowGoal) return { won: true, shots, rescues, shadowMerges, seconds: frame / 60, merges: controller.getRunSummary().merges, autoWin: shots === 0 && rescues === 0 };
+    if (controller.checkLevelComplete() === 'win' && shadowGoal) return { won: true, shots, rescues, swapsUsed, shadowMerges, seconds: frame / 60, merges: controller.getRunSummary().merges, autoWin: shots === 0 && rescues === 0 };
     // 与实际结算一致，最后一球停止后只保留有限救场时间。
     if (controller.getGameState().shotsRemaining === 0) {
       const moving = [...active.keys()].some(b => !b.isSleeping && Math.hypot(b.velocity.x, b.velocity.y) > 0.3);
@@ -181,7 +215,7 @@ export function simulateStage(stage: number, angles: number[], rescue = false, a
       if (settledSince !== null && frame - settledSince >= (shakes > 0 ? 150 : 42)) break;
     }
   }
-  return { won: false, shots, rescues, shadowMerges, seconds: 35, merges: controller.getRunSummary().merges, autoWin: false };
+  return { won: false, shots, rescues, swapsUsed, shadowMerges, seconds: 35, merges: controller.getRunSummary().merges, autoWin: false };
 }
 
 if (process.env.RUN_CHAPTER === '1') {

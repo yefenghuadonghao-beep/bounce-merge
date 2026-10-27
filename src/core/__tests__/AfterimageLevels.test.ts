@@ -39,7 +39,7 @@ describe('残影模式关卡隔离', () => {
   for (let i = 0; i < solutions.length; i++) {
     const solution = solutions[i];
     it(`残影第 ${solution.stage} 轮无需福利也有物理解法`, () => {
-      const result = simulateStage(solution.stage, solution.angles, solution.rescue, true);
+      const result = simulateStage(solution.stage, solution.angles, solution.rescue, true, '', solution.actions);
       expect(result.won).toBe(true);
       expect(result.shadowMerges).toBeGreaterThanOrEqual(levels[i].requiredAfterimageMerges);
       expect(result.shots).toBeLessThanOrEqual(levels[i].shots);

@@ -5,7 +5,7 @@ import { setPlatform } from '../../platform';
 import { WebPlatform } from '../../platform/WebPlatform';
 import { MainScene } from '../MainScene';
 import { UpgradeScene } from '../UpgradeScene';
-import { battlePlans } from '../../core/BattlePlan';
+import { battlePlanEffects, battlePlans } from '../../core/BattlePlan';
 import { ShotQueue } from '../../core/ShotQueue';
 import { GameController } from '../../core/GameController';
 import ballLevels from '../../config/ballLevels.json';
@@ -102,6 +102,35 @@ describe('scene turn lifecycle', () => {
     scene.init({ gameController: controller, gameConfig: config });
     expect(scene['shakesRemaining']).toBe(levelConfigs[4].shakes + 1);
     expect(scene['charge'].threshold).toBe(3);
+  });
+
+  it('direct preview selection spends one swap and leaves shot count unchanged', () => {
+    controller.applyUpgrade(battlePlans()[1]);
+    controller.advanceLevel();
+    scene.init({ gameController: controller, gameConfig: config });
+    scene['shotQueue'] = new ShotQueue(1, 9, Math.random, [1, 2, 3, 4]);
+    scene['updateUI'] = vi.fn();
+    const shots = controller.getGameState().shotsRemaining;
+    scene['swapBall'](2);
+    expect(scene['shotQueue'].peek()).toEqual([3, 2, 1]);
+    expect(scene['swapsRemaining']).toBe(2);
+    expect(controller.getGameState().shotsRemaining).toBe(shots);
+  });
+
+  it('refunds the chain plan swap on its first charge reward only', () => {
+    for (let i = 0; i < 3; i++) controller.advanceLevel();
+    controller.applyUpgrade(battlePlans()[2]);
+    controller.advanceLevel();
+    scene.init({ gameController: controller, gameConfig: config });
+    for (let i = 0; i < 3; i++) scene['charge'].add(1);
+    expect(scene['refundPlanSwap']()).toBe(true);
+    expect(scene['swapsRemaining']).toBe(1);
+    for (let i = 0; i < 3; i++) scene['charge'].add(1);
+    expect(scene['refundPlanSwap']()).toBe(false);
+    expect(scene['swapsRemaining']).toBe(1);
+    controller.retryLevel();
+    scene.init({ gameController: controller, gameConfig: config });
+    expect(scene['swapsRemaining']).toBe(0);
   });
 
   it('unlocks after 450ms even while other fruit is moving', () => {
@@ -280,7 +309,7 @@ describe('chapter completion and safe upgrades', () => {
       expect(offered.every(card => card.scope === 'next_level')).toBe(true);
       controller.applyUpgrade(offered[0]);
       controller.advanceLevel();
-      expect(controller.getGameState().shotsRemaining).toBe(levelConfigs[stage].shots + 2);
+      expect(controller.getGameState().shotsRemaining).toBe(levelConfigs[stage].shots + battlePlanEffects(offered[0], levelConfigs[stage]).shots);
       expect(controller.getGameState().upgrades).toHaveLength(0);
     }
   });
