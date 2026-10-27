@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import classicLevels from '../config/levelConfig.json';
+import afterimageLevels from '../config/afterimageLevels.json';
 import { GameController } from '../core/GameController';
 import { GameConfig } from '../types';
 import { button, ink, panel, paper, FONT_FAMILY } from '../ui/theme';
@@ -44,7 +46,7 @@ export class HomeScene extends Phaser.Scene {
       color: ink,
       fontStyle: 'bold'
     }).setOrigin(0.5);
-    this.add.text(360, 520, '同款相碰升级 · 用完发射前达成目标', {
+    this.add.text(360, 510, '同款相碰升级 · 用完发射前达成目标', {
       fontFamily: FONT_FAMILY,
       fontSize: '22px',
       color: '#8b7c64'
@@ -58,7 +60,7 @@ export class HomeScene extends Phaser.Scene {
       color: ink,
       fontStyle: 'bold'
     }).setOrigin(0.5);
-    this.add.text(360, 760, '轨迹变实体 · 同型残影磁吸合并', {
+    this.add.text(360, 750, '留下轨迹 → 同款共鸣 → 清影开路', {
       fontFamily: FONT_FAMILY,
       fontSize: '22px',
       color: '#8b7c64'
@@ -73,7 +75,7 @@ export class HomeScene extends Phaser.Scene {
   }
 
   private startMode(afterimageMode: boolean) {
-    this.gameController.reset();
+    this.gameController.startRun(afterimageMode ? afterimageLevels : classicLevels);
     this.scene.start('MainScene', {
       gameController: this.gameController,
       gameConfig: this.gameConfig,

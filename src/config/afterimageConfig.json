@@ -1,11 +1,11 @@
 {
   "enabled": true,
-  "maxTracks": 15,
-  "fadeAfterShots": 10,
-  "segmentInterval": 15,
-  "segmentThickness": 12,
-  "baseOpacity": 0.9,
-  "magnetRadius": 80,
+  "maxTracks": 8,
+  "fadeAfterShots": 6,
+  "segmentInterval": 28,
+  "segmentThickness": 8,
+  "baseOpacity": 0.65,
+  "magnetRadius": 60,
   "magnetRadiusMultipliers": {
     "1": 0.8,
     "2": 0.9,
@@ -18,5 +18,6 @@
     "9": 1.6,
     "10": 1.8
   },
-  "mergeCheckInterval": 100
+  "mergeCheckInterval": 220,
+  "maxSegments": 32
 }

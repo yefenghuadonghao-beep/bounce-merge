@@ -31,6 +31,34 @@ describe('scene turn lifecycle', () => {
     scene.time = { delayedCall: vi.fn((_delay: number, callback: () => void) => callback()) } as unknown as Phaser.Time.Clock;
   });
 
+  it('requires a shadow merge before completing the afterimage goal', () => {
+    scene.init({ gameController: controller, gameConfig: config, afterimageMode: true });
+    controller.processMerge(2, 1000);
+    scene.update(1100);
+    expect(scene.scene.start).not.toHaveBeenCalled();
+    scene['afterimageMergeCount'] = 1;
+    scene.update(1400);
+    expect(scene.scene.start).toHaveBeenCalledWith('UpgradeScene', expect.objectContaining({ afterimageMode: true }));
+  });
+
+  it('does not create shadows for preset or merged balls', () => {
+    scene.init({ gameController: controller, gameConfig: config, afterimageMode: true });
+    scene['balls'] = [{ body: { velocity: { x: 4, y: 8 } } as MatterJS.BodyType, sprite: { x: 360, y: 700 } as Phaser.GameObjects.Image, level: 1 }];
+    scene['updateAfterimages']();
+    expect(scene['afterimageSystem']?.getTracks().size).toBe(0);
+  });
+
+  it('freezes pending merges after the result has been decided', () => {
+    scene['resolving'] = true;
+    scene['mergeBalls'] = vi.fn();
+    const first = { body: {} as MatterJS.BodyType, sprite: {} as Phaser.GameObjects.Arc, level: 1 };
+    const second = { ...first };
+    scene['balls'] = [first, second];
+    scene['pendingMerges'] = [[first, second]];
+    scene.update(2000);
+    expect(scene['mergeBalls']).not.toHaveBeenCalled();
+  });
+
   it('unlocks after 450ms even while other fruit is moving', () => {
     scene['balls'] = [{ body: { velocity: { x: 4, y: 8 } } as MatterJS.BodyType, sprite: {} as Phaser.GameObjects.Arc, level: 1 }];
     scene.update(449);

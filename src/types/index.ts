@@ -97,6 +97,7 @@ export interface ScoringConfig {
 }
 
 export interface AfterimageTrack {
+  finalized: boolean;
   id: number;
   ballLevel: number;
   segments: AfterimageSegment[];
@@ -111,6 +112,7 @@ export interface AfterimageSegment {
 }
 
 export interface AfterimageConfig {
+  maxSegments?: number;
   enabled: boolean;
   maxTracks: number;
   fadeAfterShots: number;

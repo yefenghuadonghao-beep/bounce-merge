@@ -29,7 +29,8 @@ export class GameOverScene extends Phaser.Scene {
     const state = this.gameController.getGameState();
     const summary = this.gameController.getRunSummary();
     paper(this);
-    this.add.text(360, 160, this.won ? '第一章，全员下班！' : '今天也辛苦啦', { fontFamily: FONT_FAMILY, fontSize: '43px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
+    const winTitle = this.afterimageMode ? '残影挑战，全员下班！' : '第一章，全员下班！';
+    this.add.text(360, 160, this.won ? winTitle : '今天也辛苦啦', { fontFamily: FONT_FAMILY, fontSize: '43px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(360, 225, `情绪释放到第 ${state.currentLevel} 关`, { fontFamily: FONT_FAMILY, fontSize: '27px', color: '#8b7c64' }).setOrigin(0.5);
     panel(this, 70, 305, 580, 400);
     this.add.text(360, 355, '今日快乐值', { fontFamily: FONT_FAMILY, fontSize: '24px', color: '#8b7c64' }).setOrigin(0.5);
@@ -40,7 +41,7 @@ export class GameOverScene extends Phaser.Scene {
       fontFamily: FONT_FAMILY, fontSize: '24px', color: '#8b7c64', align: 'center', lineSpacing: 14
     }).setOrigin(0.5);
     if (this.textures.exists('characters')) this.add.image(360, 1110, 'characters', `ball_${summary.highest}`).setDisplaySize(135, 135);
-    button(this, 360, 930, 440, this.won ? '再挑战第一章' : '重试本关', () => {
+    button(this, 360, 930, 440, this.won ? '再挑战一次' : '重试本关', () => {
       if (this.won) { this.restart(); return; }
       if (this.restarting) return;
       this.restarting = true;
@@ -53,10 +54,11 @@ export class GameOverScene extends Phaser.Scene {
   private async saveRecord(label: Phaser.GameObjects.Text) {
     const platform = getPlatform();
     const state = this.gameController.getGameState();
-    const stored = Number(await platform.loadData('best_score'));
+    const recordKey = this.afterimageMode ? 'afterimage_best_score' : 'best_score';
+    const stored = Number(await platform.loadData(recordKey));
     const previous = Number.isFinite(stored) ? Math.max(0, stored) : 0;
     const best = Math.max(previous, state.score);
-    await platform.saveData('best_score', String(best));
+    await platform.saveData(recordKey, String(best));
     if (label.active) label.setText(state.score > previous ? `新纪录！个人最佳 ${best}` : `个人最佳 ${best}`);
   }
 
