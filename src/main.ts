@@ -33,14 +33,11 @@ async function start() {
     
     // URL参数优先级：?scene > ?mode > ?stage，默认主屏幕
     if (urlParams.get('scene') === 'upgrade') {
-      console.log('[DEV] Starting UpgradeScene, afterimage=', afterimageMode);
       result.startScene('UpgradeScene', skip, afterimageMode);
     } else if (afterimageMode || urlParams.has('stage')) {
       // ?mode=afterimage 或 ?stage=N 直接进入游戏
-      console.log('[DEV] Starting MainScene, afterimageMode=', afterimageMode, ', skip=', skip);
       result.startScene('MainScene', skip, afterimageMode);
     } else {
-      console.log('[DEV] Starting HomeScene');
       result.startScene('HomeScene');
     }
   } else {
