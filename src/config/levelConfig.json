@@ -113,7 +113,7 @@
   {
     "level": 4,
     "title": "咖啡续命",
-    "hint": "先合两只放空豚，再规划下一次连合",
+    "hint": "橙色文件夹撞 1 次会散开，也能从右边绕行",
     "targetScore": 0,
     "targetBallLevel": 4,
     "shots": 5,
@@ -125,6 +125,15 @@
       2
     ],
     "obstacles": [
+      {
+        "x": 230,
+        "y": 680,
+        "width": 220,
+        "height": 24,
+        "skin": "notebook",
+        "mechanic": "breakable",
+        "hits": 1
+      },
       {
         "x": 200,
         "y": 1050,
@@ -166,7 +175,7 @@
   {
     "level": 5,
     "title": "绕过会议",
-    "hint": "中间有挡板，从两侧绕进去",
+    "hint": "先碰左边 A 按钮打开门禁，再从中路追击",
     "targetScore": 0,
     "targetBallLevel": 4,
     "shots": 6,
@@ -180,12 +189,22 @@
     ],
     "obstacles": [
       {
+        "x": 180,
+        "y": 490,
+        "radius": 32,
+        "skin": "coaster",
+        "mechanic": "switch",
+        "link": "A"
+      },
+      {
         "x": 360,
         "y": 620,
-        "width": 250,
-        "height": 18,
+        "width": 320,
+        "height": 24,
         "angle": 0,
-        "skin": "ruler"
+        "skin": "notebook",
+        "mechanic": "gate",
+        "link": "A"
       },
       {
         "x": 200,
@@ -218,7 +237,7 @@
   {
     "level": 6,
     "title": "工位太远",
-    "hint": "先补齐两只续命蛙，抱团留到最后",
+    "hint": "撞散右侧文件桥，放下暴躁鼠，再安排同款合成",
     "targetScore": 0,
     "targetBallLevel": 5,
     "shots": 6,
@@ -230,7 +249,23 @@
       1,
       2
     ],
-    "obstacles": [],
+    "obstacles": [
+      {
+        "x": 520,
+        "y": 870,
+        "width": 200,
+        "height": 24,
+        "skin": "notebook",
+        "mechanic": "breakable",
+        "hits": 1
+      },
+      {
+        "x": 300,
+        "y": 650,
+        "radius": 42,
+        "skin": "clock"
+      }
+    ],
     "presetBalls": [
       {
         "x": 160,
@@ -243,8 +278,8 @@
         "level": 2
       },
       {
-        "x": 560,
-        "y": 1030,
+        "x": 520,
+        "y": 820,
         "level": 3
       }
     ],
@@ -255,7 +290,7 @@
   {
     "level": 7,
     "title": "下班倒计时",
-    "hint": "只有 5 发，先把低阶球配成同款",
+    "hint": "中央文件夹需撞 2 次，先拆开或从侧边反弹",
     "targetScore": 0,
     "targetBallLevel": 5,
     "shots": 5,
@@ -272,6 +307,15 @@
         "y": 550,
         "radius": 48,
         "skin": "clock"
+      },
+      {
+        "x": 360,
+        "y": 760,
+        "width": 260,
+        "height": 26,
+        "skin": "notebook",
+        "mechanic": "breakable",
+        "hits": 2
       }
     ],
     "presetBalls": [
@@ -293,7 +337,7 @@
   {
     "level": 8,
     "title": "全员下班",
-    "hint": "没有高阶搭子，分两路合出续命蛙",
+    "hint": "左侧 B 按钮开门，再撞散中层文件夹形成连锁",
     "targetScore": 0,
     "targetBallLevel": 6,
     "shots": 8,
@@ -309,18 +353,31 @@
     ],
     "obstacles": [
       {
-        "x": 360,
+        "x": 170,
         "y": 480,
-        "radius": 38,
-        "skin": "coaster"
+        "radius": 32,
+        "skin": "coaster",
+        "mechanic": "switch",
+        "link": "B"
+      },
+      {
+        "x": 360,
+        "y": 560,
+        "width": 270,
+        "height": 24,
+        "skin": "notebook",
+        "mechanic": "gate",
+        "link": "B"
       },
       {
         "x": 360,
         "y": 700,
-        "width": 220,
-        "height": 18,
+        "width": 260,
+        "height": 24,
         "angle": 0,
-        "skin": "notebook"
+        "skin": "notebook",
+        "mechanic": "breakable",
+        "hits": 1
       },
       {
         "x": 200,

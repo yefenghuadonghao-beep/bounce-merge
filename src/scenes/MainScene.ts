@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GameController } from '../core/GameController';
 import { GameConfig, AfterimageConfig } from '../types';
+import { BoardMechanisms } from '../core/BoardMechanisms';
 import { MergeCharge } from '../core/MergeCharge';
 import { battlePlanEffects } from '../core/BattlePlan';
 import { ShotQueue } from '../core/ShotQueue';
@@ -8,7 +9,7 @@ import { AfterimageSystem } from '../core/AfterimageSystem';
 import afterimageConfigData from '../config/afterimageConfig.json';
 import { button, characterNames, ink, panel, paper, FONT_FAMILY } from '../ui/theme';
 import { mergeBurst, paperConfetti } from '../ui/officeEffects';
-import { loadOfficeArt, officeProp, officeObstacle, itemFrames } from '../ui/officeArt';
+import { loadOfficeArt, officeProp, officeObstacle, officeMechanism, itemFrames } from '../ui/officeArt';
 import { setupHiDpi } from '../ui/hidpi';
 import { getPlatform } from '../platform';
 import { WorkstationManager } from '../core/WorkstationManager';
@@ -33,6 +34,10 @@ export class MainScene extends Phaser.Scene {
   private gameController!: GameController;
   private gameConfig!: GameConfig;
   private balls: Ball[] = [];
+  private mechanisms = new BoardMechanisms([]);
+  private obstacleBodies: MatterJS.BodyType[] = [];
+  private obstacleViews: Phaser.GameObjects.Container[] = [];
+  private obstacleHits: { index: number; speed: number }[] = [];
   private shotQueue!: ShotQueue;
   private launcherPreview!: Phaser.GameObjects.Image;
   private thirdPreview?: Phaser.GameObjects.Image;
@@ -82,6 +87,10 @@ export class MainScene extends Phaser.Scene {
     this.gameConfig = data.gameConfig;
     this.afterimageMode = data.afterimageMode ?? false;
     this.balls = [];
+    this.mechanisms = new BoardMechanisms(this.gameController.getLevelConfig().obstacles ?? []);
+    this.obstacleBodies = [];
+    this.obstacleViews = [];
+    this.obstacleHits = [];
     this.victoryVersion++;
     this.rewardReceipt = undefined;
     this.rewardSaving = false;
@@ -338,14 +347,14 @@ export class MainScene extends Phaser.Scene {
     const obstacles = this.gameController.getLevelConfig().obstacles ?? [];
     for (let i = 0; i < obstacles.length; i++) {
       const obstacle = obstacles[i];
-      officeObstacle(this, obstacle);
+      this.obstacleViews.push(officeMechanism(this, obstacle));
       if (obstacle.radius) {
-        this.matter.add.circle(obstacle.x, obstacle.y, obstacle.radius, { isStatic: true, restitution: 0.65, label: 'peg' });
+        this.obstacleBodies.push(this.matter.add.circle(obstacle.x, obstacle.y, obstacle.radius, { isStatic: true, isSensor: obstacle.mechanic === 'switch', restitution: 0.65, label: 'peg' }));
       } else {
         const width = obstacle.width ?? 100;
         const height = obstacle.height ?? 18;
         const angle = obstacle.angle ?? 0;
-        this.matter.add.rectangle(obstacle.x, obstacle.y, width, height, { isStatic: true, angle, restitution: 0.2, friction: 0.005, label: 'floor' });
+        this.obstacleBodies.push(this.matter.add.rectangle(obstacle.x, obstacle.y, width, height, { isStatic: true, angle, restitution: 0.2, friction: 0.005, label: 'floor' }));
       }
     }
     officeObstacle(this, { x: 360, y: 1105, width: 620, height: 10, skin: 'notebook' });
@@ -583,6 +592,12 @@ export class MainScene extends Phaser.Scene {
         const { bodyA, bodyB } = pairs[i];
         const ballA = this.balls.find(ball => ball.body === bodyA);
         const ballB = this.balls.find(ball => ball.body === bodyB);
+        if (this.gameController.getLevelShotsUsed() > 0) {
+          const ball = ballA ?? ballB;
+          const obstacle = ballA ? bodyB : bodyA;
+          const index = this.obstacleBodies.indexOf(obstacle);
+          if (ball && index >= 0) this.obstacleHits.push({ index, speed: Math.hypot(ball.body.velocity.x, ball.body.velocity.y) });
+        }
         if (ballA && ballB && this.gameController.canMerge(ballA.level, ballB.level)) {
           this.pendingMerges.push([ballA, ballB]);
         }
@@ -798,8 +813,36 @@ export class MainScene extends Phaser.Scene {
     this.scene.start(chapterEnd ? 'GameOverScene' : 'UpgradeScene', data);
   }
 
+  private updateMechanisms(time: number) {
+    const hits = this.obstacleHits.splice(0);
+    for (let i = 0; i < hits.length; i++) {
+      const hit = hits[i];
+      const result = this.mechanisms.hit(hit.index, hit.speed, time);
+      if (!result.changed) continue;
+      const view = this.obstacleViews[hit.index];
+      const label = view.getByName('mechanism-label') as Phaser.GameObjects.Text;
+      const obstacle = this.gameController.getLevelConfig().obstacles![hit.index];
+      let text = `还需撞 ${result.remaining} 次`;
+      if (obstacle.mechanic === 'switch') text = `${obstacle.link} · 已开门`;
+      label.setText(text);
+      if (!result.removed.includes(hit.index)) this.tweens.add({ targets: view, alpha: 0.5, duration: 90, yoyo: true });
+      for (let j = 0; j < result.removed.length; j++) {
+        const index = result.removed[j];
+        this.matter.world.remove(this.obstacleBodies[index]);
+        const removed = this.obstacleViews[index];
+        const gate = this.gameController.getLevelConfig().obstacles![index].mechanic === 'gate';
+        const note = this.add.text(removed.x, removed.y - 25, gate ? '门禁打开！' : '文件散开！', { fontFamily: FONT_FAMILY, fontSize: '24px', color: '#8c6340', backgroundColor: '#fff5db', padding: { x: 8, y: 4 } }).setOrigin(0.5).setDepth(6);
+        this.tweens.add({ targets: note, y: note.y - 55, alpha: 0, duration: 950, onComplete: () => note.destroy() });
+        this.tweens.add({ targets: removed, y: removed.y + 35, angle: 12, alpha: 0, duration: 280, onComplete: () => removed.setVisible(false) });
+        mergeBurst(this, removed.x, removed.y, 0xd4a363, 1, false);
+      }
+      this.platform.playSound('merge');
+    }
+  }
+
   update(time: number) {
     if (this.resolving) return;
+    this.updateMechanisms(time);
     this.gameController.updateCombo(time);
     const state = this.gameController.getGameState();
     this.comboBar?.clear();

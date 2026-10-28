@@ -1,7 +1,7 @@
 import type Phaser from 'phaser';
 import type { LevelConfig } from '../types';
 import ballLevels from '../config/ballLevels.json';
-import { officeObstacle } from './officeArt';
+import { officeMechanism } from './officeArt';
 
 // 缩略图和展开图使用同一比例，机关角度、间距与预摆位置保持一致。
 export function boardPreview(scene: Phaser.Scene, level: LevelConfig, x: number, y: number, width: number, height: number) {
@@ -16,14 +16,14 @@ export function boardPreview(scene: Phaser.Scene, level: LevelConfig, x: number,
   const obstacles = level.obstacles ?? [];
   for (let i = 0; i < obstacles.length; i++) {
     const obstacle = obstacles[i];
-    officeObstacle(scene, {
+    officeMechanism(scene, {
       ...obstacle,
       x: px(obstacle.x),
       y: py(obstacle.y),
       radius: obstacle.radius ? obstacle.radius * scale : undefined,
       width: (obstacle.width ?? 100) * scale,
       height: (obstacle.height ?? 18) * scale
-    });
+    }, scale);
   }
   const seeds = level.presetBalls ?? [];
   for (let i = 0; i < seeds.length; i++) {

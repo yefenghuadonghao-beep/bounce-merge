@@ -1,3 +1,4 @@
+import { BoardMechanisms } from '../src/core/BoardMechanisms';
 import { createRequire } from 'node:module';
 import { GameController } from '../src/core/GameController';
 import { ShotQueue } from '../src/core/ShotQueue';
@@ -90,11 +91,14 @@ export function simulateStage(stage: number, angles: number[], rescue = false, a
     recordings.delete(body);
   }
   const obstacles = level.obstacles as BoardObstacle[];
+  const mechanisms = new BoardMechanisms(obstacles);
+  let mechanismHits: { index: number; speed: number }[] = [];
+  let mechanismsRemoved = 0;
   const staticBodies = [
     Bodies.rectangle(50, 640, 10, 1280, { isStatic: true, restitution: 0.8 }),
     Bodies.rectangle(670, 640, 10, 1280, { isStatic: true, restitution: 0.8 }),
     Bodies.rectangle(360, 1110, 720, 20, { isStatic: true, restitution: 0.3 }),
-    ...obstacles.map(o => o.radius ? Bodies.circle(o.x, o.y, o.radius, { isStatic: true, restitution: 0.65 }) : Bodies.rectangle(o.x, o.y, o.width!, o.height!, { isStatic: true, angle: o.angle ?? 0, restitution: 0.2, friction: 0.005 }))
+    ...obstacles.map(o => o.radius ? Bodies.circle(o.x, o.y, o.radius, { isStatic: true, isSensor: o.mechanic === 'switch', restitution: 0.65 }) : Bodies.rectangle(o.x, o.y, o.width!, o.height!, { isStatic: true, angle: o.angle ?? 0, restitution: 0.2, friction: 0.005 }))
   ];
   for (let i = 0; i < staticBodies.length; i++) Composite.add(engine.world, staticBodies[i]);
   function spawn(x: number, y: number, level: number) {
@@ -110,6 +114,12 @@ export function simulateStage(stage: number, angles: number[], rescue = false, a
   Events.on(engine, 'collisionStart', event => {
     for (let i = 0; i < event.pairs.length; i++) {
       const { bodyA, bodyB } = event.pairs[i];
+      if (controller.getLevelShotsUsed() > 0) {
+        const ball = active.has(bodyA) ? bodyA : bodyB;
+        const other = ball === bodyA ? bodyB : bodyA;
+        const index = staticBodies.indexOf(other) - 3;
+        if (active.has(ball) && index >= 0) mechanismHits.push({ index, speed: Math.hypot(ball.velocity.x, ball.velocity.y) });
+      }
       if (active.has(bodyA) && active.has(bodyB) && controller.canMerge(active.get(bodyA)!, active.get(bodyB)!)) pending.push([bodyA, bodyB]);
     }
   });
@@ -168,6 +178,15 @@ export function simulateStage(stage: number, angles: number[], rescue = false, a
       settledSince = null;
     }
     Engine.update(engine, 1000 / 60);
+    const hits = mechanismHits;
+    mechanismHits = [];
+    for (let i = 0; i < hits.length; i++) {
+      const result = mechanisms.hit(hits[i].index, hits[i].speed, now);
+      for (let j = 0; j < result.removed.length; j++) {
+        Composite.remove(engine.world, staticBodies[result.removed[j] + 3]);
+        mechanismsRemoved++;
+      }
+    }
     if (afterimage) {
       const records = Array.from(recordings.entries());
       for (let i = 0; i < records.length; i++) {
@@ -206,7 +225,7 @@ export function simulateStage(stage: number, angles: number[], rescue = false, a
       settledSince = null;
     }
     const shadowGoal = !afterimage || shadowMerges >= shadowLevels[stage - 1].requiredAfterimageMerges;
-    if (controller.checkLevelComplete() === 'win' && shadowGoal) return { won: true, shots, rescues, swapsUsed, shadowMerges, seconds: frame / 60, merges: controller.getRunSummary().merges, autoWin: shots === 0 && rescues === 0 };
+    if (controller.checkLevelComplete() === 'win' && shadowGoal) return { won: true, mechanismsRemoved, shots, rescues, swapsUsed, shadowMerges, seconds: frame / 60, merges: controller.getRunSummary().merges, autoWin: shots === 0 && rescues === 0 };
     // 与实际结算一致，最后一球停止后只保留有限救场时间。
     if (controller.getGameState().shotsRemaining === 0) {
       const moving = [...active.keys()].some(b => !b.isSleeping && Math.hypot(b.velocity.x, b.velocity.y) > 0.3);
@@ -215,7 +234,7 @@ export function simulateStage(stage: number, angles: number[], rescue = false, a
       if (settledSince !== null && frame - settledSince >= (shakes > 0 ? 150 : 42)) break;
     }
   }
-  return { won: false, shots, rescues, swapsUsed, shadowMerges, seconds: 35, merges: controller.getRunSummary().merges, autoWin: false };
+  return { won: false, mechanismsRemoved, shots, rescues, swapsUsed, shadowMerges, seconds: 35, merges: controller.getRunSummary().merges, autoWin: false };
 }
 
 if (process.env.RUN_CHAPTER === '1') {

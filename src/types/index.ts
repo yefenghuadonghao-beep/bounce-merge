@@ -7,6 +7,9 @@ export interface BallLevel {
 }
 
 export interface BoardObstacle {
+  mechanic?: string;
+  hits?: number;
+  link?: string;
   skin?: string;
   x: number;
   y: number;
