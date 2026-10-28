@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { WorkstationManager } from '../core/WorkstationManager';
-import { canMergeWorkstationContent, findWorkstationMerge, type WorkstationSource } from '../core/WorkstationActions';
+import { canMergeWorkstationContent, findWorkstationMerge, selectedWorkstationAction, type WorkstationSource } from '../core/WorkstationActions';
 import { mergeBurst } from '../ui/officeEffects';
 import { WorkstationSystem } from '../core/WorkstationSystem';
 import type { GameController } from '../core/GameController';
@@ -553,8 +553,10 @@ export class WorkstationScene extends Phaser.Scene {
       const container = this.add.container(90 + (i - offset) * 100, 1144);
       const bg = this.add.rectangle(0, 0, 84, 100, 0xf3ead4).setStrokeStyle(1, 0xd7c9ab).setInteractive({ useHandCursor: true });
       const icon = officeProp(this, 0, -6, itemFrames[item.type], 76);
-      const levelText = this.add.text(0, 38, `${item.level}级`, { fontFamily: FONT_FAMILY, fontSize: '16px', color: ink }).setOrigin(0.5);
+      const levelText = this.add.text(0, 38, `${this.itemName(item.type)} ${item.level}级`, { fontFamily: FONT_FAMILY, fontSize: '14px', color: ink }).setOrigin(0.5);
       container.add([bg, icon, levelText]);
+      const action = selectedWorkstationAction(state, this.config, { source: 'inbox', index: i, content: item });
+      if (action?.kind === 'merge') container.add(this.add.circle(30, -35, 6, 0x799853));
       this.inboxGraphics.push(container);
       bg.on('pointerdown', () => this.startDragFromInbox(i, item));
     }
@@ -567,7 +569,38 @@ export class WorkstationScene extends Phaser.Scene {
     const canReturn = selected?.source === 'desk' && !('producedCoins' in selected.content);
     this.returnLabel?.setVisible(Boolean(canReturn));
     this.pageLabel?.setVisible(!canReturn);
-    this.quickMergeLabel?.setAlpha(findWorkstationMerge(state, this.config) ? 1 : 0.45);
+    const action = selected ? selectedWorkstationAction(state, this.config, selected) : undefined;
+    let actionLabel = '合成一组';
+    if (selected) actionLabel = action?.kind === 'merge' ? '合成这件' : '摆上工位';
+    if (selected && !action) actionLabel = '暂无同款';
+    const canAct = selected ? Boolean(action) : Boolean(findWorkstationMerge(state, this.config));
+    this.quickMergeLabel?.setText(actionLabel).setAlpha(canAct ? 1 : 0.45);
+    if (selected) {
+      const item = selected.content;
+      const progress = 'producedCoins' in item ? ({ intern: 1, junior: 2, senior: 3, lead: 4, manager: 5 }[item.type] / 5) : item.level / this.config.itemLevels[item.type].maxLevel;
+      this.growthBar?.clear().fillStyle(0xd6dec4).fillRoundedRect(52, 237, 616, 6, 3).fillStyle(0x82976a).fillRoundedRect(52, 237, 616 * progress, 6, 3);
+      if ('producedCoins' in item) {
+        const names = { intern: '困困猫', junior: '续命蛙', senior: '打卡汪', lead: '摸鱼熊', manager: '下班大王' };
+        const face = { intern: 1, junior: 4, senior: 5, lead: 7, manager: 10 }[item.type];
+        this.growthHero?.setTexture('characters', `ball_${face}`).setDisplaySize(76, 76);
+        this.growthTitle?.setText(`已选：${names[item.type]}`);
+        this.growthRecipe?.setText(item.type === 'manager' ? '已达最高职级，继续产出麻薯币' : '再合一位同类搭子 → 晋升下一职级');
+        this.growthStatus?.setText(`产出 ${this.config.employeeProduction[item.type].coinsPerHour} 币/时 · 绿色工位可合成`);
+      } else {
+        const recipe = this.config.itemLevels[item.type];
+        const names = { intern: '困困猫', junior: '续命蛙', senior: '打卡汪', lead: '摸鱼熊', manager: '下班大王' };
+        let next = `再合一件同款 → ${item.level + 1}级${this.itemName(item.type)}`;
+        if (item.level >= recipe.maxLevel) next = recipe.promotesTo ? `再合一件满级同款 → ${names[recipe.promotesTo]}入职` : '已经满级，可保留装饰或收回材料';
+        this.growthTitle?.setText(`已选：${this.itemName(item.type)} · ${item.level}级`);
+        this.growthRecipe?.setText(next);
+        this.growthHero?.setTexture('office-props', String(itemFrames[item.type])).setDisplaySize(76, 76);
+        let status = '暂无同款，可摆上橙色空位等待配对';
+        if (action?.kind === 'merge') status = action.prepare ? '收件箱有同款 · 点“合成这件”放入空桌合成' : '发现同款！点“合成这件”，或点绿色工位';
+        this.growthStatus?.setText(status);
+      }
+    } else {
+      this.updateGrowth();
+    }
     let hint = '点选材料，再点发光工位；也可直接拖动';
     if (selected) hint = '绿框可合成 · 橙框可摆放 · 点击收件箱可换选';
     this.selectionHint?.setText(hint);
@@ -595,8 +628,15 @@ export class WorkstationScene extends Phaser.Scene {
 
   private quickMerge() {
     if (this.claiming || this.leaving) return;
+    const selected = this.selectedContent;
+    const chosen = selected ? selectedWorkstationAction(this.system.getState(), this.config, selected) : undefined;
+    if (selected && !chosen) {
+      this.rewardMessage = '这件材料暂时没有可合成对象，可先摆放或收回腾位';
+      this.updateRewards();
+      return;
+    }
     this.cancelDrag();
-    const match = findWorkstationMerge(this.system.getState(), this.config);
+    const match = chosen ?? findWorkstationMerge(this.system.getState(), this.config);
     if (!match) {
       this.rewardMessage = '暂时没有同款可合成，闯关补货或先腾出空位';
       this.updateRewards();
@@ -606,6 +646,11 @@ export class WorkstationScene extends Phaser.Scene {
     this.draggedContent = match.source;
     this.handleDrop(match.target);
     this.cancelDrag();
+    const result = this.system.getState().desks[match.target].content;
+    if (chosen && result) {
+      this.selectedContent = { source: 'desk', index: match.target, content: result };
+      this.updateSelection();
+    }
   }
 
   private returnSelectedItem() {

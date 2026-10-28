@@ -47,6 +47,43 @@ describe('scene turn lifecycle', () => {
     scene.time = { delayedCall: vi.fn((_delay: number, callback: () => void) => callback()) } as unknown as Phaser.Time.Clock;
   });
 
+  it('previewing and cancelling gather never spends a tool or fires a ball', () => {
+    scene['shakesRemaining'] = 2;
+    scene['balls'] = [{ body: { position: { x: 100 } } as MatterJS.BodyType, sprite: {} as Phaser.GameObjects.Image, level: 1 }];
+    const shots = controller.getGameState().shotsRemaining;
+    scene['beginTool']('gather');
+    expect(scene['toolMode']).toBe('gather');
+    expect(scene['shakesRemaining']).toBe(2);
+    scene['beginTool']('gather');
+    expect(scene['toolMode']).toBeUndefined();
+    expect(scene['shakesRemaining']).toBe(2);
+    expect(controller.getGameState().shotsRemaining).toBe(shots);
+  });
+
+  it('gathers toward the selected side and spends exactly one use', () => {
+    scene['shakesRemaining'] = 2;
+    const setVelocity = vi.fn();
+    scene.matter = { body: { setVelocity } } as unknown as Phaser.Physics.Matter.MatterPhysics;
+    scene.cameras = { main: { shake: vi.fn() } } as unknown as Phaser.Cameras.Scene2D.CameraManager;
+    scene['updateUI'] = vi.fn();
+    scene['balls'] = [{ body: { position: { x: 100 } } as MatterJS.BodyType, sprite: { setAwake: vi.fn() } as unknown as Phaser.GameObjects.Image, level: 1 }];
+    scene['shakeBoard'](600);
+    expect(setVelocity).toHaveBeenCalledWith(scene['balls'][0].body, { x: 12.5, y: -7 });
+    expect(scene['shakesRemaining']).toBe(1);
+    expect(controller.getLevelShotsUsed()).toBe(0);
+  });
+
+  it('dismisses an open tool picker before presenting a completed level', () => {
+    scene['toolMode'] = 'swap';
+    const destroy = vi.fn();
+    scene['toolOverlay'] = { destroy } as unknown as Phaser.GameObjects.Container;
+    controller.processMerge(1, 1000);
+    scene.update(1500);
+    expect(scene['showVictory']).toHaveBeenCalledOnce();
+    expect(scene['toolMode']).toBeUndefined();
+    expect(destroy).toHaveBeenCalledOnce();
+  });
+
   it('requires a shadow merge before completing the afterimage goal', () => {
     scene.init({ gameController: controller, gameConfig: config, afterimageMode: true });
     controller.processMerge(2, 1000);

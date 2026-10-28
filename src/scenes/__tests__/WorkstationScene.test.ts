@@ -223,6 +223,16 @@ describe('workstation input lifecycle', () => {
     expect(scene['loaded']).toBe(false);
   });
 
+  it('the primary inventory action merges the selected kind and preserves unrelated pairs', () => {
+    const system = scene['system'];
+    system.addItemToInbox('coffee', 1);
+    system.addItemToInbox('coffee', 1);
+    scene['selectedContent'] = { source: 'inbox', index: 3, content: system.getState().inbox[3] };
+    scene['quickMerge']();
+    expect(system.getState().desks[0].content).toMatchObject({ type: 'coffee', level: 2 });
+    expect(system.getState().inbox.filter(item => item.type === 'document')).toHaveLength(2);
+  });
+
   it('merges one inbox pair into a real empty desk with a single deliberate action', () => {
     scene['quickMerge']();
     expect(scene['system'].getState().inbox).toHaveLength(1);

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GameController } from '../core/GameController';
 import { GameConfig, AfterimageConfig } from '../types';
+import { gatherVelocity } from '../core/BattleTools';
 import { BoardMechanisms } from '../core/BoardMechanisms';
 import { MergeCharge } from '../core/MergeCharge';
 import { battlePlanEffects } from '../core/BattlePlan';
@@ -47,6 +48,10 @@ export class MainScene extends Phaser.Scene {
   private chargeBar?: Phaser.GameObjects.Graphics;
   private comboBar?: Phaser.GameObjects.Graphics;
   private matchRings?: Phaser.GameObjects.Graphics;
+  private toolTargetX = 360;
+  private toolMode?: 'gather' | 'swap';
+  private toolOverlay?: Phaser.GameObjects.Container;
+  private toolPreview?: Phaser.GameObjects.Graphics;
   private shakesRemaining = 1;
   private swapsRemaining = 2;
   private shakeLabel!: Phaser.GameObjects.Text;
@@ -87,6 +92,10 @@ export class MainScene extends Phaser.Scene {
     this.gameConfig = data.gameConfig;
     this.afterimageMode = data.afterimageMode ?? false;
     this.balls = [];
+    this.toolTargetX = 360;
+    this.toolMode = undefined;
+    this.toolOverlay = undefined;
+    this.toolPreview = undefined;
     this.mechanisms = new BoardMechanisms(this.gameController.getLevelConfig().obstacles ?? []);
     this.obstacleBodies = [];
     this.obstacleViews = [];
@@ -191,14 +200,12 @@ export class MainScene extends Phaser.Scene {
     this.add.circle(startX, startY, 42, 0xffffff, 0.65).setStrokeStyle(3, 0x49392d);
     this.launcherPreview = this.add.image(startX, startY, 'characters', `ball_${this.shotQueue.peek()[0]}`).setDisplaySize(56, 56);
     panel(this, 24, 1105, 672, 160);
-    this.uiTexts.hint = this.add.text(360, 1220, '按住瞄准，松开发射 · 不用等球停下', {
-      fontFamily: FONT_FAMILY, fontSize: '23px', color: ink
+    this.uiTexts.hint = this.add.text(360, 1240, '按住瞄准，松开发射 · 不用等球停下', {
+      fontFamily: FONT_FAMILY, fontSize: '20px', color: ink
     }).setOrigin(0.5);
-    this.shakeLabel = button(this, 190, 1150, 280, '抱团取暖 ×1', () => this.shakeBoard()).label;
-    this.swapLabel = button(this, 530, 1150, 280, '换个搭子 ×2', () => {
-      if (this.awaitingRescue) this.finishRescue();
-      else this.swapBall();
-    }).label;
+    this.toolPreview = this.add.graphics().setDepth(8);
+    this.shakeLabel = this.createToolCard(42, 'gather');
+    this.swapLabel = this.createToolCard(382, 'swap');
     const stage = this.gameController.getLevelConfig();
     const presets = stage.presetBalls ?? [];
     for (let i = 0; i < presets.length; i++) {
@@ -403,6 +410,7 @@ export class MainScene extends Phaser.Scene {
         previews[i].setInteractive({ useHandCursor: true });
         previews[i].on('pointerdown', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
           event.stopPropagation();
+          this.cancelTool();
           this.swapBall(i + 1);
         });
       }
@@ -432,6 +440,7 @@ export class MainScene extends Phaser.Scene {
     if (state.shotsRemaining === 0) swapText = '等待停稳';
     if (this.awaitingRescue) swapText = '结束本关';
     this.swapLabel?.setText(swapText);
+    this.uiTexts.swapHelp?.setText(this.awaitingRescue ? '结束救场，查看本关结算' : '先看后换，不浪费次数');
     this.shakeLabel?.parentContainer?.setAlpha(this.shakesRemaining > 0 ? 1 : 0.45);
     const canSwapOrFinish = this.awaitingRescue || (state.shotsRemaining > 0 && this.swapsRemaining > 0);
     this.swapLabel?.parentContainer?.setAlpha(canSwapOrFinish ? 1 : 0.45);
@@ -468,10 +477,12 @@ export class MainScene extends Phaser.Scene {
     else this.shotQueue.swap();
     this.swapsRemaining--;
     this.updateUI();
+    this.uiTexts.hint?.setText(`下一球换成${characterNames[this.shotQueue.at(0)]}，找同款再发射`);
+    if (this.launcherPreview) this.tweens.add({ targets: this.launcherPreview, angle: 360, duration: 350 });
     this.platform.playSound('swap');
   }
 
-  private shakeBoard() {
+  private shakeBoard(targetX = 360) {
     if (this.resolving || this.shakesRemaining <= 0 || this.balls.length === 0) return;
     this.shakesRemaining--;
     const plan = battlePlanEffects(this.gameController.getGameState().activePlan, this.gameController.getLevelConfig());
@@ -480,7 +491,7 @@ export class MainScene extends Phaser.Scene {
     for (let i = 0, length = balls.length; i < length; i++) {
       const body = balls[i].body;
       (balls[i].sprite as Phaser.GameObjects.Image & Phaser.Physics.Matter.Components.Sleep).setAwake();
-      this.matter.body.setVelocity(body, { x: (360 - body.position.x) * 0.025, y: -7 });
+      this.matter.body.setVelocity(body, gatherVelocity(body.position.x, targetX));
     }
     this.shotStartedAt = this.time.now;
     this.settledSince = null;
@@ -488,6 +499,100 @@ export class MainScene extends Phaser.Scene {
     this.cameras.main.shake(180, 0.006);
     this.platform.playSound('swap');
     this.updateUI();
+  }
+
+  private createToolCard(x: number, mode: 'gather' | 'swap') {
+    const root = this.add.container(x + 148, 1169);
+    const background = this.add.graphics().fillStyle(mode === 'gather' ? 0xe4edce : 0xffdfbe).fillRoundedRect(-148, -48, 296, 96, 18).lineStyle(2, 0xb7a282).strokeRoundedRect(-148, -48, 296, 96, 18);
+    const face = this.add.image(-105, -2, 'characters', mode === 'gather' ? 'ball_2' : 'ball_4').setDisplaySize(64, 64);
+    const label = this.add.text(-59, -28, '', { fontFamily: FONT_FAMILY, fontSize: '23px', color: ink, fontStyle: 'bold' });
+    const description = this.add.text(-59, 10, mode === 'gather' ? '拖选左右，松开抱团' : '先看后换，不浪费次数', { fontFamily: FONT_FAMILY, fontSize: '16px', color: '#8b6041' });
+    if (mode === 'swap') this.uiTexts.swapHelp = description;
+    root.add([background, face, label, description]).setSize(296, 96).setInteractive({ useHandCursor: true });
+    root.on('pointerdown', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      if (mode === 'swap' && this.awaitingRescue) { this.finishRescue(); return; }
+      this.beginTool(mode);
+    });
+    return label;
+  }
+
+  private cancelTool() {
+    this.toolMode = undefined;
+    this.toolOverlay?.destroy(true);
+    this.toolOverlay = undefined;
+    this.toolPreview?.clear();
+    this.isAiming = false;
+    this.aimLine?.setVisible(false);
+    this.aimArrow?.setVisible(false);
+  }
+
+  private beginTool(mode: 'gather' | 'swap') {
+    if (this.resolving) return;
+    if (this.toolMode === mode) {
+      this.cancelTool();
+      this.uiTexts.hint?.setText('已取消，道具次数没有消耗');
+      return;
+    }
+    this.cancelTool();
+    if (mode === 'gather') {
+      if (this.shakesRemaining <= 0) {
+        this.uiTexts.hint?.setText(this.charge.rewards < this.charge.limit ? '抱团用完了，合成充能可补次数' : '本关抱团次数已用完');
+        return;
+      }
+      if (this.balls.length === 0) {
+        this.uiTexts.hint?.setText('先发射团子，再用抱团选择聚拢位置');
+        return;
+      }
+      this.toolMode = mode;
+      this.previewGather(360);
+      this.uiTexts.hint?.setText('按住拖选左右，松开抱团 · 点道具取消');
+      return;
+    }
+    if (this.swapsRemaining <= 0 || !this.canShoot) {
+      this.uiTexts.hint?.setText(this.swapsRemaining <= 0 ? '换球次数已用完，按当前顺序安排落点' : '下一球还在准备，稍后再换');
+      return;
+    }
+    this.toolMode = mode;
+    const start = this.children.length;
+    this.add.rectangle(360, 650, 620, 880, 0x49392d, 0.25).setInteractive();
+    panel(this, 65, 775, 590, 305);
+    this.add.text(95, 800, '这次想发射哪一位？', { fontFamily: FONT_FAMILY, fontSize: '27px', color: ink, fontStyle: 'bold' });
+    const count = this.rotateQueue ? 3 : 2;
+    for (let i = 0; i < count; i++) {
+      const x = 160 + i * (400 / (count - 1));
+      const level = this.shotQueue.at(i);
+      this.add.image(x, 914, 'characters', `ball_${level}`).setDisplaySize(90, 90);
+      this.add.text(x, 980, characterNames[level], { fontFamily: FONT_FAMILY, fontSize: '21px', color: ink }).setOrigin(0.5);
+      const label = i === 0 ? '保持当前' : '换成这位';
+      const hit = this.add.text(x, 1030, label, { fontFamily: FONT_FAMILY, fontSize: '22px', color: '#547044', backgroundColor: '#edf1db', padding: { x: 18, y: 10 } }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      hit.on('pointerdown', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+        event.stopPropagation();
+        this.cancelTool();
+        if (i > 0) this.swapBall(this.rotateQueue ? i : undefined);
+        else this.uiTexts.hint?.setText('继续使用当前团子，没有消耗次数');
+      });
+    }
+    const close = this.add.text(620, 804, '×', { fontFamily: FONT_FAMILY, fontSize: '32px', color: ink }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    close.on('pointerdown', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      this.cancelTool();
+      this.uiTexts.hint?.setText('已取消，道具次数没有消耗');
+    });
+    this.toolOverlay = this.add.container(0, 0, this.children.list.slice(start)).setDepth(30);
+    this.uiTexts.hint?.setText('只有换成不同团子，才扣一次换球');
+  }
+
+  private previewGather(x: number) {
+    const target = Math.max(120, Math.min(600, x));
+    this.toolTargetX = target;
+    const graphics = this.toolPreview;
+    if (!graphics) return;
+    graphics.clear().fillStyle(0xa6bd7c, 0.15).fillCircle(target, 1000, 68).lineStyle(3, 0x799853).strokeCircle(target, 1000, 68);
+    for (let i = 0; i < this.balls.length; i++) {
+      const ball = this.balls[i];
+      graphics.lineStyle(2, 0x799853, 0.7).lineBetween(ball.sprite.x, ball.sprite.y, target, ball.sprite.y - 40);
+    }
   }
 
   private createAimingLine() {
@@ -502,6 +607,8 @@ export class MainScene extends Phaser.Scene {
 
   private setupInput() {
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (this.toolMode === 'gather' && pointer.worldY >= 400 && pointer.worldY <= 1100) this.previewGather(pointer.worldX);
+      if (this.toolMode) return;
       if (pointer.worldY < 210 || pointer.worldY > 1100) return;
       if (this.canShoot && !this.resolving && this.gameController.getGameState().shotsRemaining > 0) {
         this.isAiming = true;
@@ -510,12 +617,20 @@ export class MainScene extends Phaser.Scene {
     });
 
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (this.toolMode === 'gather') this.previewGather(pointer.worldX);
       if (this.isAiming) {
         this.updateAim(pointer);
       }
     });
 
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      if (this.toolMode === 'gather' && pointer.worldY >= 400 && pointer.worldY <= 1100) {
+        const target = pointer.worldX;
+        this.cancelTool();
+        this.shakeBoard(target);
+        this.uiTexts.hint?.setText('抱团已使用！沿着同款继续追击');
+        return;
+      }
       if (!this.isAiming) return;
       if (pointer.worldY < 210 || pointer.worldY > 1100) {
         this.isAiming = false;
@@ -526,6 +641,7 @@ export class MainScene extends Phaser.Scene {
       this.launchBall();
     });
     this.input.on('gameout', () => {
+      this.cancelTool();
       this.isAiming = false;
       this.aimLine.setVisible(false);
       this.aimArrow.setVisible(false);
@@ -843,6 +959,7 @@ export class MainScene extends Phaser.Scene {
   update(time: number) {
     if (this.resolving) return;
     this.updateMechanisms(time);
+    if (this.toolMode === 'gather') this.previewGather(this.toolTargetX);
     this.gameController.updateCombo(time);
     const state = this.gameController.getGameState();
     this.comboBar?.clear();
@@ -896,6 +1013,7 @@ export class MainScene extends Phaser.Scene {
     const current = this.gameController.getGameState();
     const status = this.gameController.checkLevelComplete();
     if (status === 'win' && (!this.afterimageMode || this.afterimageMergeCount >= (this.gameController.getLevelConfig().requiredAfterimageMerges ?? 1))) {
+      this.cancelTool();
       this.resolving = true;
       this.canShoot = false;
       this.isAiming = false;
@@ -912,14 +1030,14 @@ export class MainScene extends Phaser.Scene {
       if (!this.canShoot && time - this.shotStartedAt >= 450) {
         this.canShoot = true;
         this.launcherPreview?.setAlpha(1);
-        this.uiTexts.hint?.setText(this.gameController.getLevelConfig().hint ?? '按住瞄准，松开发射 · 可以连续追击');
+        if (!this.toolMode) this.uiTexts.hint?.setText(this.gameController.getLevelConfig().hint ?? '按住瞄准，松开发射 · 可以连续追击');
       }
       return;
     }
     this.canShoot = false;
     this.launcherPreview?.setVisible(false);
     const hint = this.shakesRemaining > 0 ? '等待团子停稳 · 还可以抱团救场' : '最后一球结算中…';
-    this.uiTexts.hint?.setText(hint);
+    this.uiTexts.hint?.setText(this.toolMode === 'gather' ? '点选聚拢位置 · 再点抱团取消' : hint);
     const moving = this.balls.some(ball => !ball.body.isSleeping && Math.hypot(ball.body.velocity.x, ball.body.velocity.y) > 0.3);
     if (moving || time - this.shotStartedAt < (this.afterimageMode ? 1900 : 1000)) {
       this.settledSince = null;
@@ -938,7 +1056,7 @@ export class MainScene extends Phaser.Scene {
         this.awaitingRescue = true;
         this.updateUI();
       }
-      this.uiTexts.hint?.setText(`还剩 ${this.shakesRemaining} 次抱团 · 想好再用，或结束本关`);
+      if (!this.toolMode) this.uiTexts.hint?.setText(`还剩 ${this.shakesRemaining} 次抱团 · 想好再用，或结束本关`);
       return;
     }
     this.finishFailure();

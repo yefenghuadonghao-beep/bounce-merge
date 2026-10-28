@@ -37,3 +37,28 @@ export function findWorkstationMerge(state: WorkstationState, config: Workstatio
   }
   return undefined;
 }
+
+// 以玩家选中的物品为起点找动作，不用另一组材料替代这次选择。
+export function selectedWorkstationAction(state: WorkstationState, config: WorkstationConfig, selected: WorkstationSource): { kind: 'merge' | 'place'; target: number; source: WorkstationSource; prepare?: WorkstationItem } | undefined {
+  const actual = selected.source === 'desk' ? state.desks[selected.index]?.content : state.inbox[selected.index];
+  if (!actual || actual.id !== selected.content.id) return undefined;
+  const desks = state.desks;
+  if (selected.source === 'desk') {
+    for (let i = 0; i < desks.length; i++) {
+      if (desks[i].unlocked && desks[i].content && canMergeWorkstationContent(actual, desks[i].content!, config)) return { kind: 'merge', target: selected.index, source: { source: 'desk', index: i, content: desks[i].content! } };
+    }
+    for (let i = 0; i < state.inbox.length; i++) {
+      if (canMergeWorkstationContent(actual, state.inbox[i], config)) return { kind: 'merge', target: selected.index, source: { source: 'inbox', index: i, content: state.inbox[i] } };
+    }
+    return undefined;
+  }
+  for (let i = 0; i < desks.length; i++) {
+    if (desks[i].unlocked && desks[i].content && canMergeWorkstationContent(actual, desks[i].content!, config)) return { kind: 'merge', target: i, source: selected };
+  }
+  const empty = desks.findIndex(desk => desk.unlocked && !desk.occupied);
+  if (empty < 0 || 'producedCoins' in actual) return undefined;
+  for (let i = 0; i < state.inbox.length; i++) {
+    if (canMergeWorkstationContent(actual, state.inbox[i], config)) return { kind: 'merge', target: empty, prepare: actual, source: { source: 'inbox', index: i, content: state.inbox[i] } };
+  }
+  return { kind: 'place', target: empty, source: selected };
+}

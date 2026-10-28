@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { WorkstationSystem } from '../WorkstationSystem';
-import { canMergeWorkstationContent, findWorkstationMerge } from '../WorkstationActions';
+import { canMergeWorkstationContent, findWorkstationMerge, selectedWorkstationAction } from '../WorkstationActions';
 import data from '../../config/workstationConfig.json';
 import type { WorkstationConfig } from '../../types/workstation';
 
@@ -22,6 +22,28 @@ describe('workstation deliberate organization', () => {
     expect(system.serialize()).toBe(snapshot);
     expect(system.returnItemToInbox(0)).toBe(true);
     expect(findWorkstationMerge(system.getState(), config)).toMatchObject({ target: 0, prepare: { type: 'document' } });
+  });
+
+  it('follows the selected coffee pair even when a document pair appears earlier', () => {
+    const system = create();
+    system.addItemToInbox('document', 1);
+    system.addItemToInbox('document', 1);
+    system.addItemToInbox('coffee', 1);
+    system.addItemToInbox('coffee', 1);
+    const state = system.getState();
+    const selected = { source: 'inbox' as const, index: 2, content: state.inbox[2] };
+    expect(selectedWorkstationAction(state, config, selected)).toMatchObject({ kind: 'merge', prepare: { type: 'coffee' }, source: { content: { type: 'coffee' } } });
+    state.inbox.splice(2, 1);
+    expect(selectedWorkstationAction(state, config, selected)).toBeUndefined();
+  });
+
+  it('offers placement when the selected material has no match, never an unrelated merge', () => {
+    const system = create();
+    system.addItemToInbox('document', 1);
+    system.addItemToInbox('document', 1);
+    system.addItemToInbox('plant', 3);
+    const state = system.getState();
+    expect(selectedWorkstationAction(state, config, { source: 'inbox', index: 2, content: state.inbox[2] })).toMatchObject({ kind: 'place', source: { content: { type: 'plant', level: 3 } } });
   });
 
   it('a returned item survives save/reload with the same id and level', () => {
