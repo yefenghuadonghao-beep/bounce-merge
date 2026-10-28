@@ -28,6 +28,11 @@ export class HomeScene extends Phaser.Scene {
   private stageIndex?: number;
   private leaving = false;
   private routeMode?: JourneyMode;
+  private coinBalance?: Phaser.GameObjects.Text;
+  private nextStageText?: Phaser.GameObjects.Text;
+  private primaryActionText?: Phaser.GameObjects.Text;
+  private routeMarks: Phaser.GameObjects.Rectangle[] = [];
+  private rewardDot?: Phaser.GameObjects.Arc;
 
   constructor() { super({ key: 'HomeScene' }); }
 
@@ -47,6 +52,11 @@ export class HomeScene extends Phaser.Scene {
     this.stageIndex = undefined;
     this.leaving = false;
     this.routeMode = data.routeMode;
+    this.coinBalance = undefined;
+    this.nextStageText = undefined;
+    this.primaryActionText = undefined;
+    this.routeMarks = [];
+    this.rewardDot = undefined;
   }
 
   preload() { loadOfficeArt(this); }
@@ -55,49 +65,123 @@ export class HomeScene extends Phaser.Scene {
     setupHiDpi(this);
     const version = this.viewVersion;
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.viewVersion++);
-    paper(this);
-    this.add.image(360, 410, 'office-room').setDisplaySize(720, 820);
-    this.add.rectangle(360, 146, 720, 292, 0xf5eddb);
-    this.add.text(42, 48, 'MOCHI OFFICE  /  下班事务所', { fontFamily: FONT_FAMILY, fontSize: '19px', color: '#6d795a' });
-    this.add.text(42, 94, '今天，也要\n准点下班。', { fontFamily: FONT_FAMILY, fontSize: '62px', color: ink, fontStyle: 'bold', lineSpacing: 4 });
-    this.add.text(46, 264, '碰掉坏情绪，把小日子合成喜欢的样子', { fontFamily: FONT_FAMILY, fontSize: '21px', color: '#8b7c64' });
-    const stamp = this.add.text(612, 148, '拒绝\n内耗', { fontFamily: FONT_FAMILY, fontSize: '24px', color: '#b26245', align: 'center', backgroundColor: '#fff4da', padding: { x: 16, y: 12 } }).setOrigin(0.5).setAngle(10);
-    this.tweens.add({ targets: stamp, angle: 6, duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    const mochi = this.add.image(545, 606, 'characters', 'ball_1').setDisplaySize(115, 115).setInteractive({ useHandCursor: true });
-    this.tweens.add({ targets: mochi, y: 598, angle: -4, duration: 1600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    // 保留暖色办公室插画，用奶油色过渡承托状态和主操作。
+    this.add.rectangle(360, 640, 720, 1280, 0xf4efdf);
+    this.add.image(360, 390, 'office-room').setDisplaySize(720, 820);
+    const atmosphere = this.add.graphics();
+    atmosphere.fillStyle(0xf4efdf, 0.05).fillRect(0, 0, 720, 820);
+    atmosphere.fillGradientStyle(0xf4efdf, 0xf4efdf, 0xf4efdf, 0xf4efdf, 0.95, 0.95, 0.1, 0.1).fillRect(0, 0, 720, 390);
+    atmosphere.fillGradientStyle(0xf4efdf, 0xf4efdf, 0xf4efdf, 0xf4efdf, 0, 0, 1, 1).fillRect(0, 425, 720, 430);
+    atmosphere.lineStyle(1, 0xb4a286, 0.3).lineBetween(36, 92, 684, 92);
+    atmosphere.lineStyle(1, 0xb4a286, 0.06);
+    for (let x = 36; x < 720; x += 72) atmosphere.lineBetween(x, 820, x, 1280);
+
+    const emblem = this.add.graphics().lineStyle(2, 0xaf8555);
+    emblem.strokeRect(-14, -14, 28, 28).lineBetween(-6, 0, 6, 0).lineBetween(0, -6, 0, 6).setPosition(57, 52).setAngle(45);
+    this.add.text(90, 32, '下班团子', { fontFamily: FONT_FAMILY, fontSize: '28px', fontStyle: 'bold', color: '#49392d' });
+    this.add.text(92, 65, 'MOCHI OFFICE', { fontFamily: FONT_FAMILY, fontSize: '12px', color: '#8b7c64', letterSpacing: 3 });
+    this.add.rectangle(600, 51, 168, 48, 0xf4efdf, 0.65).setStrokeStyle(1, 0xb4a286, 0.35);
+    officeProp(this, 543, 51, 7, 34);
+    this.coinBalance = this.add.text(662, 51, '—', { fontFamily: FONT_FAMILY, fontSize: '24px', color: '#6d795a' }).setOrigin(1, 0.5);
+
+    this.add.text(38, 121, '下班事务所  /  轻松一刻', { fontFamily: FONT_FAMILY, fontSize: '18px', color: '#8b7c64', letterSpacing: 1 });
+    this.add.text(36, 156, '准点下班计划', { fontFamily: FONT_FAMILY, fontSize: '54px', color: '#49392d', fontStyle: 'bold' });
+    this.add.text(40, 229, '碰掉坏情绪，合出你的下班搭子。', { fontFamily: FONT_FAMILY, fontSize: '22px', color: '#6d795a' });
+    this.add.rectangle(39, 301, 4, 32, 0xaf8555);
+    this.add.text(55, 286, '弹射 × 合成 × 工位养成', { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#6d795a' });
+
+    // 团子与轨道独立浮动，场景不移动，避免按钮跟随装饰动画漂移。
+    const orbit = this.add.graphics().lineStyle(1, 0xaf8555, 0.34);
+    orbit.strokeCircle(0, 0, 204).strokeCircle(0, 0, 216).setPosition(391, 505).setScale(1, 0.7).setAngle(-18);
+    const marker = this.add.graphics().fillStyle(0xd39a65).fillRect(190, -5, 10, 10).setPosition(391, 505);
+    this.tweens.add({ targets: marker, angle: 360, duration: 30000, repeat: -1 });
+    this.add.graphics().fillStyle(0x6e5840, 0.42).fillEllipse(408, 638, 330, 54);
+    const companion = this.add.image(236, 532, 'characters', 'ball_2').setDisplaySize(175, 175).setAngle(-14);
+    const mochi = this.add.image(447, 468, 'characters', 'ball_1').setDisplaySize(300, 300).setAngle(8).setInteractive({ useHandCursor: true });
+    const frog = this.add.image(566, 594, 'characters', 'ball_4').setDisplaySize(128, 128).setAngle(14);
+    this.tweens.add({ targets: companion, y: 544, angle: -8, duration: 2400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.tweens.add({ targets: mochi, y: 452, angle: 3, duration: 2100, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.tweens.add({ targets: frog, y: 582, angle: 8, duration: 1900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     mochi.on('pointerdown', () => {
-      this.tweens.add({ targets: mochi, scaleX: mochi.scaleX * 1.12, scaleY: mochi.scaleY * 0.9, duration: 120, yoyo: true });
-      const note = this.add.text(470, 507, '摸鱼也是充电', { fontFamily: FONT_FAMILY, fontSize: '22px', color: ink, backgroundColor: '#fff9e7', padding: { x: 12, y: 8 } }).setOrigin(0.5);
-      this.tweens.add({ targets: note, y: 480, alpha: 0, delay: 900, duration: 400, onComplete: () => note.destroy() });
+      if (this.leaving) return;
+      const note = this.add.text(360, 345, '今天的情绪，也能合成好心情。', { fontFamily: FONT_FAMILY, fontSize: '21px', color: '#49392d', backgroundColor: '#ede4d0', padding: { x: 18, y: 10 } }).setOrigin(0.5);
+      this.tweens.add({ targets: note, y: 320, alpha: 0, delay: 850, duration: 350, onComplete: () => note.destroy() });
     });
 
-    panel(this, 30, 735, 660, 210);
-    this.add.text(58, 760, '01  下班闯关', { fontFamily: FONT_FAMILY, fontSize: '32px', color: ink, fontStyle: 'bold' });
-    this.homeProgress = this.add.text(60, 806, '正在读取你的下班路线…', { fontFamily: FONT_FAMILY, fontSize: '21px', color: '#8b7c64' });
-    button(this, 360, 892, 590, '打开打工路线  →', () => this.showRoute(false));
-    this.shadowProgress = this.modeCard(30, 976, '02  残影实验室', '轨迹成路，同款共鸣', 4, () => this.showRoute(true));
-    this.workstationProgress = this.modeCard(370, 976, '03  我的工位', '通关得物资，合成招搭子', 2, () => this.goToWorkstation());
-    this.add.text(360, 1230, '慢一点也没关系，总会合出好心情', { fontFamily: FONT_FAMILY, fontSize: '19px', color: '#8b7c64' }).setOrigin(0.5);
+    // 进度与下一步操作组成同一个任务面板，玩家无需先进入地图再开始。
+    this.lobbyPanel(36, 711, 648, 285, 0xfffcf2);
+    this.add.text(60, 733, '下班路线', { fontFamily: FONT_FAMILY, fontSize: '24px', color: '#49392d', fontStyle: 'bold' });
+    this.homeProgress = this.add.text(656, 738, '读取记录中…', { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#6d795a' }).setOrigin(1, 0);
+    for (let i = 0; i < classicLevels.length; i++) {
+      this.routeMarks.push(this.add.rectangle(94 + i * 76, 786, 65, 5, 0xe4dbc7));
+    }
+    this.nextStageText = this.add.text(60, 813, '下一站 · 刚到工位', { fontFamily: FONT_FAMILY, fontSize: '23px', color: '#8b7c64' });
+    const map = this.add.text(655, 827, '关卡地图  ›', { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#94623d', padding: { x: 12, y: 15 } }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
+    map.on('pointerdown', () => this.showRoute(false));
+    this.primaryActionText = this.lobbyButton(360, 924, 600, '开始闯关', () => this.continueRoute());
+    this.shadowProgress = this.modeCard(36, 1020, '残影实验室', '轨迹成路 · 同款共鸣', 4, () => this.showRoute(true));
+    this.workstationProgress = this.modeCard(370, 1020, '我的工位', '合成物资 · 招募搭子', 2, () => this.goToWorkstation());
+    this.rewardDot = this.add.circle(658, 1044, 6, 0xc77a4f).setVisible(false);
+    this.add.text(360, 1244, '每次通关，都让理想工位更近一步', { fontFamily: FONT_FAMILY, fontSize: '18px', color: '#8b7c64' }).setOrigin(0.5);
     this.cameras.main.fadeIn(350, 244, 239, 223);
     void this.loadProgress(version);
     if (this.routeMode) this.showRoute(this.routeMode === 'afterimage');
   }
 
+  private lobbyPanel(x: number, y: number, width: number, height: number, color: number) {
+    const shape = this.add.graphics();
+    shape.fillStyle(0x705a42, 0.12).fillRoundedRect(x, y + 5, width, height, 20);
+    shape.fillStyle(color, 0.97).fillRoundedRect(x, y, width, height, 20);
+    shape.lineStyle(2, 0xb4a286, 0.85).strokeRoundedRect(x, y, width, height, 20);
+    return shape;
+  }
+
+  private lobbyButton(x: number, y: number, width: number, title: string, action: () => void) {
+    const container = this.add.container(x, y);
+    const bg = this.add.graphics();
+    bg.fillStyle(0x9b7454).fillRoundedRect(-width / 2, -35, width, 80, 20);
+    bg.fillStyle(0xee976e).fillRoundedRect(-width / 2, -40, width, 80, 20);
+    bg.lineStyle(1, 0xffe2bd, 0.8).strokeRoundedRect(-width / 2 + 2, -38, width - 4, 76, 18);
+    const label = this.add.text(-18, 0, title, { fontFamily: FONT_FAMILY, fontSize: '29px', color: '#49392d', fontStyle: 'bold' }).setOrigin(0.5);
+    const arrow = this.add.text(width / 2 - 36, -2, '›', { fontFamily: FONT_FAMILY, fontSize: '42px', color: '#49392d' }).setOrigin(0.5);
+    container.add([bg, label, arrow]).setSize(width, 80).setInteractive({ useHandCursor: true });
+    container.on('pointerover', () => bg.setAlpha(0.86));
+    container.on('pointerout', () => bg.setAlpha(1));
+    container.on('pointerdown', () => {
+      if (this.leaving) return;
+      action();
+    });
+    return label;
+  }
+
   private modeCard(x: number, y: number, title: string, hint: string, level: number, action: () => void) {
-    panel(this, x, y, 320, 210, level === 4 ? 0xe8efdf : 0xffedd6);
-    const face = this.add.image(x + 270, y + 52, 'characters', `ball_${level}`).setDisplaySize(60, 60);
-    this.tweens.add({ targets: face, angle: 7, duration: 1800, yoyo: true, repeat: -1 });
-    this.add.text(x + 22, y + 30, title, { fontFamily: FONT_FAMILY, fontSize: '26px', color: ink, fontStyle: 'bold' });
-    const subtitle = this.add.text(x + 22, y + 82, hint, { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#8b7c64' });
-    button(this, x + 160, y + 158, 268, '进去看看  →', action);
+    const start = this.children.length;
+    const surface = this.lobbyPanel(x, y, 314, 178, 0xfffcf2);
+    this.add.image(x + 266, y + 56, 'characters', `ball_${level}`).setDisplaySize(64, 64).setAlpha(0.8);
+    this.add.text(x + 22, y + 28, title, { fontFamily: FONT_FAMILY, fontSize: '27px', color: '#49392d', fontStyle: 'bold' });
+    const subtitle = this.add.text(x + 22, y + 82, hint, { fontFamily: FONT_FAMILY, fontSize: '19px', color: '#8b7c64' });
+    this.add.text(x + 22, y + 127, '进入  ›', { fontFamily: FONT_FAMILY, fontSize: '21px', color: '#94623d' });
+    const card = this.add.container(0, 0, this.children.list.slice(start));
+    const hit = this.add.rectangle(x + 157, y + 89, 314, 178, 0xffffff, 0).setInteractive({ useHandCursor: true });
+    card.add(hit);
+    hit.on('pointerover', () => surface.setAlpha(0.8));
+    hit.on('pointerout', () => surface.setAlpha(1));
+    hit.on('pointerdown', action);
     return subtitle;
+  }
+
+  private continueRoute() {
+    const progress = routeProgress('classic', classicLevels, this.records);
+    this.startMode(false, progress.nextIndex);
   }
 
   private async loadProgress(version: number) {
     try {
       const system = await WorkstationManager.getInstance(getPlatform()).getSystem();
       if (version !== this.viewVersion || this.leaving) return;
-      const journey = system.getState().journey;
+      const state = system.getState();
+      const journey = state.journey;
+      if (this.view === 'home') this.coinBalance?.setText(String(Math.floor(state.coins)));
       this.records = { ...journey?.records };
       const rewards = journey?.pendingRewards ?? [];
       this.pendingItems = 0;
@@ -117,17 +201,32 @@ export class HomeScene extends Phaser.Scene {
       return;
     }
     if (this.progressFailed) {
-      this.homeProgress?.setText('记录暂未读取 · 点这里重试，仍可挑战').setInteractive({ useHandCursor: true }).once('pointerdown', () => {
-        this.homeProgress?.disableInteractive().setText('正在读取你的下班路线…');
+      this.homeProgress?.setText('读取失败 · 点击重试').setInteractive({ useHandCursor: true }).once('pointerdown', () => {
+        this.homeProgress?.disableInteractive().setText('读取记录中…');
         void this.loadProgress(this.viewVersion);
       });
       return;
     }
     const classic = routeProgress('classic', classicLevels, this.records);
     const shadow = routeProgress('afterimage', afterimageLevels, this.records);
-    this.homeProgress?.setText(`已通关 ${classic.cleared} / ${classicLevels.length} · 过关带物资，回工位养搭子`);
-    this.shadowProgress?.setText(`已通关 ${shadow.cleared} / ${afterimageLevels.length} · 同款共鸣`);
-    if (this.pendingItems > 0) this.workstationProgress?.setText(`${this.pendingItems} 件通关物资待领取`);
+    this.homeProgress?.setText(`已完成 ${classic.cleared} / ${classicLevels.length}`);
+    this.shadowProgress?.setText(`已完成 ${shadow.cleared} / ${afterimageLevels.length} 关`);
+    const next = classicLevels[classic.nextIndex];
+    this.nextStageText?.setText(`下一站 ${String(next.level).padStart(2, '0')} · ${next.title}`);
+    this.primaryActionText?.setText(`继续闯关 · 第 ${next.level} 关`);
+    if (classic.cleared === 0) this.primaryActionText?.setText('开始闯关');
+    if (classic.complete) {
+      this.nextStageText?.setText('全线通关 · 向更好的成绩出发');
+      this.primaryActionText?.setText('再次挑战');
+    }
+    for (let i = 0; i < this.routeMarks.length; i++) {
+      const cleared = (this.records[stageKey('classic', classicLevels[i].level)]?.clears ?? 0) > 0;
+      this.routeMarks[i].setFillStyle(cleared ? 0x7f9867 : 0xe4dbc7);
+    }
+    if (this.pendingItems > 0) {
+      this.workstationProgress?.setText(`${this.pendingItems} 件通关物资待领取`).setColor('#a66a40');
+      this.rewardDot?.setVisible(true);
+    }
   }
 
   private showRoute(shadow: boolean) {
