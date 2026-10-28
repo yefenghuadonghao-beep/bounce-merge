@@ -46,10 +46,20 @@ export class WorkstationManager {
       this.system = WorkstationSystem.deserialize(savedData, this.config, this.clock);
     } else {
       this.system = new WorkstationSystem(this.config, this.clock);
+      // Give new players starter items
+      this.addStarterItems();
     }
     
     this.system.update();
     return this.system;
+  }
+  
+  private addStarterItems() {
+    if (!this.system) return;
+    // Give new players a starter set to demonstrate the system
+    this.system.addItemToInbox('document', 1);
+    this.system.addItemToInbox('document', 1);
+    this.system.addItemToInbox('coffee', 1);
   }
 
   async save(): Promise<void> {

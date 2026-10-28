@@ -89,6 +89,14 @@ export class WorkstationScene extends Phaser.Scene {
     
     this.updateCoinsDisplay();
   }
+  
+  private createTutorial() {
+    this.add.text(360, 120, '拖动收件箱物品到工位 · 两个相同等级合并升级 · 顶级物品变员工', {
+      fontFamily: FONT_FAMILY,
+      fontSize: '16px',
+      color: '#8b7c64'
+    }).setOrigin(0.5);
+  }
 
   private createButtons() {
     const topY = 90;
