@@ -184,13 +184,44 @@ export class WorkstationSystem {
       return false;
     }
     
-    const item1 = desk1.content as WorkstationItem;
-    const item2 = desk2.content as WorkstationItem;
+    const content1 = desk1.content;
+    const content2 = desk2.content;
+    if (!content1 || !content2) return false;
     
-    // Can only merge items (not employees) of same type and level
-    if (!item1 || !item2 || 'producedCoins' in item1 || 'producedCoins' in item2) {
+    const isEmployee1 = 'producedCoins' in content1;
+    const isEmployee2 = 'producedCoins' in content2;
+    
+    // Employee + employee merging
+    if (isEmployee1 && isEmployee2) {
+      const emp1 = content1 as WorkstationEmployee;
+      const emp2 = content2 as WorkstationEmployee;
+      
+      if (emp1.type !== emp2.type) return false;
+      
+      // Define tier progression
+      const tierOrder: EmployeeType[] = ['intern', 'junior', 'senior', 'lead', 'manager'];
+      const currentIndex = tierOrder.indexOf(emp1.type);
+      
+      if (currentIndex === -1 || currentIndex >= tierOrder.length - 1) return false;
+      
+      const nextTier = tierOrder[currentIndex + 1];
+      emp1.type = nextTier;
+      emp1.producedCoins += emp2.producedCoins;
+      
+      desk2.content = null;
+      desk2.occupied = false;
+      this.state.totalMerges++;
+      return true;
+    }
+    
+    // Cannot merge employee + item
+    if (isEmployee1 || isEmployee2) {
       return false;
     }
+    
+    // Item + item merging
+    const item1 = content1 as WorkstationItem;
+    const item2 = content2 as WorkstationItem;
     
     if (item1.type !== item2.type || item1.level !== item2.level) {
       return false;

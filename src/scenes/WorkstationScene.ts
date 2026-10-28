@@ -1,24 +1,16 @@
 import Phaser from 'phaser';
-import { WorkstationSystem, type Clock } from '../core/WorkstationSystem';
-import type { WorkstationConfig, WorkstationItem, WorkstationEmployee } from '../types/workstation';
+import { WorkstationManager } from '../core/WorkstationManager';
+import { WorkstationSystem } from '../core/WorkstationSystem';
+import type { WorkstationConfig, WorkstationItem, WorkstationEmployee, ItemType } from '../types/workstation';
 import workstationConfig from '../config/workstationConfig.json';
 import { getPlatform } from '../platform';
 import { FONT_FAMILY, ink, panel, paper } from '../ui/theme';
 
-const STORAGE_KEY = 'workstation_state';
-
-class PlatformClock implements Clock {
-  constructor(private platform: ReturnType<typeof getPlatform>) {}
-  now(): number {
-    return this.platform.getCurrentTime();
-  }
-}
-
 export class WorkstationScene extends Phaser.Scene {
   private system!: WorkstationSystem;
   private config!: WorkstationConfig;
+  private manager!: WorkstationManager;
   private platform = getPlatform();
-  private clock = new PlatformClock(this.platform);
   
   private deskGraphics: Map<number, Phaser.GameObjects.Container> = new Map();
   private inboxGraphics: Phaser.GameObjects.Container[] = [];
@@ -26,7 +18,8 @@ export class WorkstationScene extends Phaser.Scene {
   private unlockButton?: Phaser.GameObjects.Container;
   private bossInspectionUI?: Phaser.GameObjects.Container;
   
-  private draggedItem: { itemId: string; graphics: Phaser.GameObjects.Container } | null = null;
+  private draggedContent: { source: 'inbox' | 'desk'; index: number; content: WorkstationItem | WorkstationEmployee } | null = null;
+  private dragPreview: Phaser.GameObjects.Container | null = null;
 
   constructor() {
     super({ key: 'WorkstationScene' });
@@ -34,19 +27,9 @@ export class WorkstationScene extends Phaser.Scene {
 
   async create() {
     this.config = workstationConfig as WorkstationConfig;
+    this.manager = WorkstationManager.getInstance(this.platform);
+    this.system = await this.manager.getSystem();
     
-    // Load saved state
-    const savedData = await this.platform.loadData(STORAGE_KEY);
-    if (savedData) {
-      this.system = WorkstationSystem.deserialize(savedData, this.config, this.clock);
-    } else {
-      this.system = new WorkstationSystem(this.config, this.clock);
-    }
-    
-    // Update idle production
-    this.system.update();
-    
-    // Setup UI
     paper(this);
     this.createHeader();
     this.createDesks();
@@ -56,8 +39,7 @@ export class WorkstationScene extends Phaser.Scene {
     // Auto-save every 5 seconds
     this.time.addEvent({
       delay: 5000,
-      callback: this.saveState,
-      callbackScope: this,
+      callback: () => this.manager.save(),
       loop: true
     });
     
@@ -68,43 +50,90 @@ export class WorkstationScene extends Phaser.Scene {
       callbackScope: this,
       loop: true
     });
+    
+    // Input for drag
+    this.input.on('pointermove', this.onPointerMove, this);
+    this.input.on('pointerup', this.onPointerUp, this);
   }
 
   private createHeader() {
-    this.add.text(360, 50, '工位麻薯', {
+    this.add.text(360, 40, '工位麻薯', {
       fontFamily: FONT_FAMILY,
-      fontSize: '42px',
+      fontSize: '36px',
       color: ink,
       fontStyle: 'bold'
     }).setOrigin(0.5);
     
-    panel(this, 40, 100, 640, 80);
-    
-    this.coinsText = this.add.text(360, 140, '', {
-      fontFamily: FONT_FAMILY,
-      fontSize: '28px',
-      color: ink
-    }).setOrigin(0.5);
-    
-    this.updateCoinsDisplay();
-    
     // Back button
-    const backBtn = this.add.text(50, 50, '← 返回', {
+    const backBtn = this.add.text(50, 40, '← 返回', {
       fontFamily: FONT_FAMILY,
-      fontSize: '24px',
+      fontSize: '20px',
       color: ink
-    }).setInteractive({ useHandCursor: true });
+    }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
     
-    backBtn.on('pointerdown', () => {
-      this.saveState();
+    backBtn.on('pointerdown', async () => {
+      await this.manager.save();
       this.scene.start('HomeScene');
     });
+    
+    // Coins and buttons row
+    const topY = 90;
+    
+    this.coinsText = this.add.text(80, topY, '', {
+      fontFamily: FONT_FAMILY,
+      fontSize: '22px',
+      color: ink,
+      fontStyle: 'bold'
+    }).setOrigin(0, 0.5);
+    
+    this.updateCoinsDisplay();
+  }
+
+  private createButtons() {
+    const topY = 90;
+    const state = this.system.getState();
+    const nextCost = this.system.getNextUnlockCost();
+    
+    // Collect all button
+    const collectAllBtn = this.add.text(360, topY, '全部收取', {
+      fontFamily: FONT_FAMILY,
+      fontSize: '18px',
+      color: '#ffffff',
+      backgroundColor: '#4a9d5f',
+      padding: { x: 12, y: 6 }
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    
+    collectAllBtn.on('pointerdown', () => {
+      const collected = this.system.collectAllCoins();
+      if (collected > 0) {
+        this.updateUI();
+      }
+    });
+    
+    // Unlock button
+    if (nextCost !== null) {
+      const container = this.add.container(580, topY);
+      
+      const btn = this.add.text(0, 0, `解锁 ${nextCost}币`, {
+        fontFamily: FONT_FAMILY,
+        fontSize: '18px',
+        color: '#ffffff',
+        backgroundColor: state.coins >= nextCost ? '#4a9d5f' : '#999999',
+        padding: { x: 12, y: 6 }
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      
+      btn.on('pointerdown', () => this.unlockNextDesk());
+      
+      container.add(btn);
+      this.unlockButton = container;
+    }
   }
 
   private createDesks() {
     const state = this.system.getState();
     const cols = 3;
-    const startY = 220;
+    const startX = 60;
+    const startY = 140;
     const spacing = 200;
     const slotWidth = 180;
     const slotHeight = 180;
@@ -112,8 +141,8 @@ export class WorkstationScene extends Phaser.Scene {
     for (let i = 0; i < state.desks.length; i++) {
       const row = Math.floor(i / cols);
       const col = i % cols;
-      const x = 90 + col * spacing;
-      const y = startY + row * spacing;
+      const x = startX + col * spacing + slotWidth / 2;
+      const y = startY + row * spacing + slotHeight / 2;
       
       const container = this.add.container(x, y);
       
@@ -125,12 +154,27 @@ export class WorkstationScene extends Phaser.Scene {
       
       if (desk.unlocked) {
         bg.setInteractive({ useHandCursor: true, dropZone: true });
-        bg.on('pointerdown', () => this.onDeskClick(i));
+        bg.on('pointerdown', () => this.onDeskPointerDown(i));
       } else {
-      const lockText = this.add.text(0, 0, '🔒', {
-        fontFamily: FONT_FAMILY,
-        fontSize: '48px'
-      }).setOrigin(0.5);
+        // Show lock and cost
+        const lockText = this.add.text(0, -20, '锁', {
+          fontFamily: FONT_FAMILY,
+          fontSize: '32px',
+          color: '#8b7c64',
+          fontStyle: 'bold'
+        }).setOrigin(0.5);
+        
+        const costIndex = i - this.config.initialDesks;
+        const cost = this.config.deskUnlockCost[costIndex];
+        if (cost) {
+          const costText = this.add.text(0, 20, `${cost}币`, {
+            fontFamily: FONT_FAMILY,
+            fontSize: '16px',
+            color: '#8b7c64'
+          }).setOrigin(0.5);
+          container.add(costText);
+        }
+        
         container.add(lockText);
       }
       
@@ -147,15 +191,15 @@ export class WorkstationScene extends Phaser.Scene {
       const container = this.deskGraphics.get(i);
       if (!container) continue;
       
-      // Remove old content (keep background)
-      while (container.length > 1) {
-        container.remove(container.list[1], true);
+      // Remove old content (keep background and lock)
+      while (container.length > (state.desks[i].unlocked ? 1 : 3)) {
+        container.remove(container.list[state.desks[i].unlocked ? 1 : 3], true);
       }
       
       const desk = state.desks[i];
       if (desk.occupied && desk.content) {
         if ('producedCoins' in desk.content) {
-          this.renderEmployee(container, desk.content as WorkstationEmployee);
+          this.renderEmployee(container, desk.content as WorkstationEmployee, i);
         } else {
           this.renderItem(container, desk.content as WorkstationItem);
         }
@@ -163,31 +207,45 @@ export class WorkstationScene extends Phaser.Scene {
     }
   }
 
-  private renderItem(container: Phaser.GameObjects.Container, item: WorkstationItem) {
-    const icons: Record<string, string> = {
-      document: '📄',
-      coffee: '☕',
-      package: '📦',
-      keyboard: '⌨️',
-      mouse: '🖱️',
-      plant: '🌱'
+  private renderItem(container: Phaser.GameObjects.Container, item: WorkstationItem, dragging = false) {
+    const colorMap: Record<ItemType, number> = {
+      document: 0xffd4a3,
+      coffee: 0xd4a574,
+      package: 0xadd8e6,
+      keyboard: 0xc8c8c8,
+      mouse: 0xe0e0e0,
+      plant: 0x9acd32
     };
     
-    const icon = this.add.text(0, -20, icons[item.type] || '📦', {
+    const labelMap: Record<ItemType, string> = {
+      document: '文件',
+      coffee: '咖啡',
+      package: '快递',
+      keyboard: '键盘',
+      mouse: '鼠标',
+      plant: '绿植'
+    };
+    
+    const icon = this.add.rectangle(0, -15, 80, 60, colorMap[item.type] || 0xcccccc)
+      .setStrokeStyle(2, 0x785d42);
+    
+    const label = this.add.text(0, -15, labelMap[item.type] || item.type, {
       fontFamily: FONT_FAMILY,
-      fontSize: '48px'
+      fontSize: '16px',
+      color: ink,
+      fontStyle: 'bold'
     }).setOrigin(0.5);
     
-    const levelText = this.add.text(0, 30, `Lv.${item.level}`, {
+    const levelText = this.add.text(0, 25, `Lv.${item.level}`, {
       fontFamily: FONT_FAMILY,
-      fontSize: '18px',
+      fontSize: '16px',
       color: ink
     }).setOrigin(0.5);
     
-    container.add([icon, levelText]);
+    container.add([icon, label, levelText]);
   }
 
-  private renderEmployee(container: Phaser.GameObjects.Container, employee: WorkstationEmployee) {
+  private renderEmployee(container: Phaser.GameObjects.Container, employee: WorkstationEmployee, deskIndex: number) {
     const names: Record<string, string> = {
       intern: '实习生',
       junior: '初级',
@@ -196,183 +254,305 @@ export class WorkstationScene extends Phaser.Scene {
       manager: '经理'
     };
     
-    const nameText = this.add.text(0, -30, names[employee.type] || employee.type, {
+    const colors: Record<string, number> = {
+      intern: 0xffe4b5,
+      junior: 0xffd4a3,
+      senior: 0xffb6c1,
+      lead: 0xdda0dd,
+      manager: 0xff69b4
+    };
+    
+    const icon = this.add.rectangle(0, -25, 90, 50, colors[employee.type] || 0xffb6c1)
+      .setStrokeStyle(2, 0x785d42);
+    
+    const nameText = this.add.text(0, -25, names[employee.type] || employee.type, {
       fontFamily: FONT_FAMILY,
       fontSize: '16px',
       color: ink,
       fontStyle: 'bold'
     }).setOrigin(0.5);
     
-    const coinsText = this.add.text(0, 0, `💰 ${Math.floor(employee.producedCoins)}`, {
+    const coinsText = this.add.text(0, 8, `${Math.floor(employee.producedCoins)}币`, {
       fontFamily: FONT_FAMILY,
-      fontSize: '18px',
+      fontSize: '14px',
       color: '#d4af37'
     }).setOrigin(0.5);
     
-    const collectBtn = this.add.text(0, 30, '收取', {
+    const collectBtn = this.add.text(0, 32, '收取', {
       fontFamily: FONT_FAMILY,
-      fontSize: '16px',
+      fontSize: '14px',
       color: '#ffffff',
       backgroundColor: '#4a9d5f',
-      padding: { x: 12, y: 6 }
+      padding: { x: 8, y: 4 }
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     
-    const deskIndex = this.findDeskByContent(employee);
-    if (deskIndex !== -1) {
-      collectBtn.on('pointerdown', () => {
-        this.collectFromDesk(deskIndex);
-      });
-    }
+    collectBtn.on('pointerdown', (event: Phaser.Input.Pointer) => {
+      event.event.stopPropagation();
+      this.collectFromDesk(deskIndex);
+    });
     
-    container.add([nameText, coinsText, collectBtn]);
-  }
-
-  private findDeskByContent(content: any): number {
-    const state = this.system.getState();
-    return state.desks.findIndex(d => d.content === content);
+    container.add([icon, nameText, coinsText, collectBtn]);
   }
 
   private createInbox() {
-    this.add.text(360, 920, '收件箱', {
+    this.add.text(360, 1000, '收件箱', {
       fontFamily: FONT_FAMILY,
-      fontSize: '24px',
+      fontSize: '22px',
       color: ink,
       fontStyle: 'bold'
     }).setOrigin(0.5);
     
-    panel(this, 40, 960, 640, 240);
+    panel(this, 40, 1030, 640, 200);
     this.renderInbox();
   }
 
   private renderInbox() {
-    // Clear old
     this.inboxGraphics.forEach(g => g.destroy());
     this.inboxGraphics = [];
     
     const state = this.system.getState();
-    const startX = 80;
-    const startY = 1000;
+    const startX = 90;
+    const startY = 1070;
     const spacing = 100;
     
     for (let i = 0; i < Math.min(state.inbox.length, 6); i++) {
       const item = state.inbox[i];
       const x = startX + (i % 6) * spacing;
-      const y = startY + Math.floor(i / 6) * 100;
+      const y = startY + Math.floor(i / 6) * 85;
       
       const container = this.add.container(x, y);
       
-      const icons: Record<string, string> = {
-        document: '📄',
-        coffee: '☕',
-        package: '📦',
-        keyboard: '⌨️',
-        mouse: '🖱️',
-        plant: '🌱'
+      const colorMap: Record<ItemType, number> = {
+        document: 0xffd4a3,
+        coffee: 0xd4a574,
+        package: 0xadd8e6,
+        keyboard: 0xc8c8c8,
+        mouse: 0xe0e0e0,
+        plant: 0x9acd32
       };
       
-      const icon = this.add.text(0, 0, icons[item.type] || '📦', {
-        fontFamily: FONT_FAMILY,
-        fontSize: '36px'
-      }).setOrigin(0.5).setInteractive({ useHandCursor: true, draggable: true });
+      const labelMap: Record<ItemType, string> = {
+        document: '文',
+        coffee: '咖',
+        package: '递',
+        keyboard: '键',
+        mouse: '鼠',
+        plant: '植'
+      };
       
-      const levelText = this.add.text(0, 25, `${item.level}`, {
+      const bg = this.add.rectangle(0, 0, 70, 60, colorMap[item.type] || 0xcccccc, 1)
+        .setStrokeStyle(2, 0x785d42)
+        .setInteractive({ useHandCursor: true, draggable: true });
+      
+      const label = this.add.text(0, -5, labelMap[item.type] || '?', {
+        fontFamily: FONT_FAMILY,
+        fontSize: '18px',
+        color: ink,
+        fontStyle: 'bold'
+      }).setOrigin(0.5);
+      
+      const levelText = this.add.text(0, 15, `${item.level}`, {
         fontFamily: FONT_FAMILY,
         fontSize: '14px',
         color: ink
       }).setOrigin(0.5);
       
-      container.add([icon, levelText]);
+      container.add([bg, label, levelText]);
       this.inboxGraphics.push(container);
       
-      icon.on('pointerdown', () => this.startDrag(item.id, container));
-      icon.on('pointerup', () => this.endDrag());
+      bg.on('pointerdown', () => this.startDragFromInbox(i, item));
     }
     
     if (state.inbox.length > 6) {
-      this.add.text(650, 1080, `+${state.inbox.length - 6}`, {
+      this.add.text(650, 1130, `+${state.inbox.length - 6}`, {
         fontFamily: FONT_FAMILY,
-        fontSize: '18px',
+        fontSize: '16px',
         color: ink
       }).setOrigin(1, 0.5);
     }
   }
 
-  private createButtons() {
-    const state = this.system.getState();
-    const nextCost = this.system.getNextUnlockCost();
+  private startDragFromInbox(index: number, item: WorkstationItem) {
+    this.draggedContent = { source: 'inbox', index, content: item };
+    this.createDragPreview(item);
+  }
+
+  private onDeskPointerDown(deskIndex: number) {
+    const desk = this.system.getState().desks[deskIndex];
+    if (!desk.occupied || !desk.content) return;
     
-    if (nextCost !== null) {
-      const btnX = 540;
-      const btnY = 140;
-      
-      const container = this.add.container(btnX, btnY);
-      
-      const btn = this.add.text(0, 0, `解锁 ${nextCost}💰`, {
-        fontFamily: FONT_FAMILY,
-        fontSize: '18px',
-        color: '#ffffff',
-        backgroundColor: state.coins >= nextCost ? '#4a9d5f' : '#8b7c64',
-        padding: { x: 12, y: 8 }
-      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-      
-      btn.on('pointerdown', () => this.unlockNextDesk());
-      
-      container.add(btn);
-      this.unlockButton = container;
+    this.draggedContent = { source: 'desk', index: deskIndex, content: desk.content };
+    this.createDragPreview(desk.content);
+  }
+
+  private createDragPreview(content: WorkstationItem | WorkstationEmployee) {
+    if (this.dragPreview) {
+      this.dragPreview.destroy();
     }
     
-    // Collect all button
-    const collectAllBtn = this.add.text(540, 100, '全部收取', {
-      fontFamily: FONT_FAMILY,
-      fontSize: '18px',
-      color: '#ffffff',
-      backgroundColor: '#4a9d5f',
-      padding: { x: 12, y: 8 }
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    const container = this.add.container(this.input.activePointer.x, this.input.activePointer.y);
+    container.setDepth(1000);
+    container.setAlpha(0.8);
     
-    collectAllBtn.on('pointerdown', () => {
-      const collected = this.system.collectAllCoins();
-      if (collected > 0) {
-        this.updateUI();
-      }
-    });
+    if ('producedCoins' in content) {
+      const employee = content as WorkstationEmployee;
+      const names: Record<string, string> = {
+        intern: '实习生',
+        junior: '初级',
+        senior: '高级',
+        lead: '主管',
+        manager: '经理'
+      };
+      const colors: Record<string, number> = {
+        intern: 0xffe4b5,
+        junior: 0xffd4a3,
+        senior: 0xffb6c1,
+        lead: 0xdda0dd,
+        manager: 0xff69b4
+      };
+      
+      const icon = this.add.rectangle(0, 0, 90, 50, colors[employee.type] || 0xffb6c1)
+        .setStrokeStyle(2, 0x785d42);
+      const nameText = this.add.text(0, 0, names[employee.type] || employee.type, {
+        fontFamily: FONT_FAMILY,
+        fontSize: '16px',
+        color: ink,
+        fontStyle: 'bold'
+      }).setOrigin(0.5);
+      container.add([icon, nameText]);
+    } else {
+      const item = content as WorkstationItem;
+      const colorMap: Record<ItemType, number> = {
+        document: 0xffd4a3,
+        coffee: 0xd4a574,
+        package: 0xadd8e6,
+        keyboard: 0xc8c8c8,
+        mouse: 0xe0e0e0,
+        plant: 0x9acd32
+      };
+      const labelMap: Record<ItemType, string> = {
+        document: '文',
+        coffee: '咖',
+        package: '递',
+        keyboard: '键',
+        mouse: '鼠',
+        plant: '植'
+      };
+      
+      const icon = this.add.rectangle(0, 0, 70, 60, colorMap[item.type] || 0xcccccc)
+        .setStrokeStyle(2, 0x785d42);
+      const label = this.add.text(0, 0, labelMap[item.type] || '?', {
+        fontFamily: FONT_FAMILY,
+        fontSize: '18px',
+        color: ink,
+        fontStyle: 'bold'
+      }).setOrigin(0.5);
+      container.add([icon, label]);
+    }
+    
+    this.dragPreview = container;
   }
 
-  private onDeskClick(index: number) {
-    const state = this.system.getState();
-    const desk = state.desks[index];
-    
-    if (!desk.occupied) return;
-    
-    // Show context menu or merge UI
-    // For now, allow removal
-    this.system.removeFromDesk(index);
-    this.renderDesks();
+  private onPointerMove(pointer: Phaser.Input.Pointer) {
+    if (this.dragPreview) {
+      this.dragPreview.setPosition(pointer.x, pointer.y);
+    }
   }
 
-  private startDrag(itemId: string, graphics: Phaser.GameObjects.Container) {
-    this.draggedItem = { itemId, graphics };
-  }
-
-  private endDrag() {
-    if (!this.draggedItem) return;
+  private onPointerUp() {
+    if (!this.draggedContent || !this.dragPreview) return;
     
     const pointer = this.input.activePointer;
+    let droppedOnDesk = -1;
     
-    // Find which desk we're over
+    // Check which desk we're over
     for (const [index, container] of this.deskGraphics) {
       const bounds = container.getBounds();
       if (bounds.contains(pointer.x, pointer.y)) {
-        const success = this.system.placeItemOnDesk(this.draggedItem.itemId, index);
-        if (success) {
-          this.renderInbox();
-          this.renderDesks();
-        }
+        droppedOnDesk = index;
         break;
       }
     }
     
-    this.draggedItem = null;
+    if (droppedOnDesk !== -1) {
+      this.handleDrop(droppedOnDesk);
+    }
+    
+    if (this.dragPreview) {
+      this.dragPreview.destroy();
+      this.dragPreview = null;
+    }
+    this.draggedContent = null;
+  }
+
+  private handleDrop(targetDeskIndex: number) {
+    if (!this.draggedContent) return;
+    
+    const targetDesk = this.system.getState().desks[targetDeskIndex];
+    if (!targetDesk || !targetDesk.unlocked) return;
+    
+    if (this.draggedContent.source === 'inbox') {
+      // Place from inbox
+      if (targetDesk.occupied) {
+        // Check for merge
+        const draggedItem = this.draggedContent.content as WorkstationItem;
+        const targetContent = targetDesk.content;
+        
+        if (targetContent && !('producedCoins' in targetContent)) {
+          const targetItem = targetContent as WorkstationItem;
+          if (draggedItem.type === targetItem.type && draggedItem.level === targetItem.level) {
+            // Merge: remove from inbox, merge on desk
+            const itemId = this.system.getState().inbox[this.draggedContent.index].id;
+            const tempDeskIndex = this.system.getState().desks.findIndex(d => !d.unlocked || (!d.occupied && d.unlocked));
+            if (tempDeskIndex !== -1) {
+              this.system.placeItemOnDesk(itemId, tempDeskIndex);
+              const success = this.system.mergeItems(tempDeskIndex, targetDeskIndex);
+              if (success) {
+                this.showMergeAnimation(targetDeskIndex);
+              }
+            }
+          }
+        }
+      } else {
+        const itemId = this.system.getState().inbox[this.draggedContent.index].id;
+        this.system.placeItemOnDesk(itemId, targetDeskIndex);
+      }
+    } else {
+      // Move/merge from desk to desk
+      const sourceDeskIndex = this.draggedContent.index;
+      if (sourceDeskIndex === targetDeskIndex) return;
+      
+      if (targetDesk.occupied) {
+        // Try merge
+        const success = this.system.mergeItems(sourceDeskIndex, targetDeskIndex);
+        if (success) {
+          this.showMergeAnimation(targetDeskIndex);
+        }
+      } else {
+        // Move
+        targetDesk.content = this.draggedContent.content;
+        targetDesk.occupied = true;
+        const sourceDesk = this.system.getState().desks[sourceDeskIndex];
+        sourceDesk.content = null;
+        sourceDesk.occupied = false;
+      }
+    }
+    
+    this.updateUI();
+  }
+
+  private showMergeAnimation(deskIndex: number) {
+    const container = this.deskGraphics.get(deskIndex);
+    if (!container) return;
+    
+    this.tweens.add({
+      targets: container,
+      scaleX: 1.2,
+      scaleY: 1.2,
+      duration: 150,
+      yoyo: true,
+      ease: 'Power2'
+    });
   }
 
   private collectFromDesk(index: number) {
@@ -453,7 +633,6 @@ export class WorkstationScene extends Phaser.Scene {
     this.renderInbox();
     this.updateCoinsDisplay();
     
-    // Update unlock button
     if (this.unlockButton) {
       this.unlockButton.destroy();
       this.unlockButton = undefined;
@@ -463,15 +642,10 @@ export class WorkstationScene extends Phaser.Scene {
 
   private updateCoinsDisplay() {
     const state = this.system.getState();
-    this.coinsText.setText(`💰 麻薯币: ${state.coins}`);
+    this.coinsText.setText(`麻薯币: ${state.coins}`);
   }
 
-  private async saveState() {
-    const serialized = this.system.serialize();
-    await this.platform.saveData(STORAGE_KEY, serialized);
-  }
-
-  shutdown() {
-    this.saveState();
+  async shutdown() {
+    await this.manager.save();
   }
 }
