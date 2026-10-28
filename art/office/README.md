@@ -34,3 +34,26 @@ Use case: stylized-concept. Asset type: transparent sprite sheet for cozy hand-p
 ### 机关最终生图提示词
 
 Use case: stylized-concept. Production texture atlas for a hand painted cozy office pinball mobile game. Transparent background. Square canvas in precise 2 columns by 2 rows, four isolated objects, generous empty space between objects. Top-left: a straight horizontal wooden ruler, VERY thin long rectangle, about 8 to 1 width to height, warm honey wood, small engraved tick marks, no numbers. Top-right: a single closed slim sage green notebook seen EDGE ON, VERY thin horizontal rectangular book spine, about 8 to 1 width to height, rounded corners, cream paper edge, tiny orange ribbon kept inside rectangular silhouette. Bottom-left: perfectly circular cream coffee coaster seen directly top down, caramel rim, small brown paw imprint centered, entirely inside circular boundary. Bottom-right: perfectly circular mint green office wall clock seen directly front on, cream face, small brown hands, entirely inside circular boundary. No perspective on the rectangular objects; their top surfaces must be flat horizontal so a physics ball can bounce off their exact edge. Warm cream paper, sage and apricot muted colors, soft gouache texture, dark brown pencil outlines matching an illustrated tiny office. No lettering, no logos, no shadows outside objects, no extra ornaments, no frame, no characters. Four separate assets only.
+
+
+## 战术卡与下班回执（第三轮）
+
+新增内置 image_gen 生成的三张独立透明插画：`assets/office/card-supply.webp`（补给箱与团子）、`card-control.webp`（排班夹板）、`card-chain.webp`（抱团搭子）。裁切透明留白后等比放入 400×400 画布，保留 alpha。
+
+卡面从实际 battlePlanEffects 生成收益、用途、代价和下一关资源总数。三种动作分别为补给球跃起、队列交换和共鸣扩散；选择后落下已装备印章，其余卡片淡出，选择锁防止重复推进关卡。结算采用同一手绘纸张风格的回执，包含角色待机、盖章、分数计数、合成/连合统计、重试提示及工位入口。
+
+验收：逐张选择经典终关三张卡，核对弹药 9/1/0、排班 8/1/3、抱团 8/2/0（发射/抱团/换球）；实际打完终关触发失败报告并重试，恢复同一关与战术初始资源。成功报告使用临时单关章节夹具，经实际发射合成进入结算并前往工位；验收后已恢复正式八关配置，未改变难度或卡牌效果。自动测试覆盖卡面前后期、不同模式数值和结算分支。微信仍缺少 weapp-adapter，未做真机验证。
+
+### 最终生图提示词
+
+弹药储备:
+
+Production mobile game tactical card illustration, hand-painted gouache and colored pencil on warm cream, muted sage green and apricot palette, caramel brown ink outlines, rounded ugly-cute mochi animals matching a cozy tiny office. Single isolated composition, transparent background, readable at 140px, no words, letters, numbers, logos, UI or border. Square composition with generous clear padding. A round tired grey tabby cat wearing a loose blue tie proudly opening a cardboard supply box full of exactly three small round mochi balls, one peach, one cream, one sage. One ball pops up above the box. A warm little spark above the cat. The box and abundance clearly communicate extra ammunition / more attempts. Full cat and box visible.
+
+排班高手:
+
+Production mobile game tactical card illustration, hand-painted gouache and colored pencil on warm cream, muted sage green and apricot palette, caramel brown ink outlines, rounded ugly-cute mochi animals matching a cozy tiny office. Single isolated composition, transparent background, readable at 140px, no words, letters, numbers, logos, UI or border. Square composition with generous clear padding. A sleepy round capybara office planner holding a sage clipboard with three large colored mochi tokens arranged vertically, a pencil in the other paw, and three separate round tokens on the desk in front in peach, cream, sage colors. Two simple curved arrows indicate rearranging their order. Clear silhouette, organized controlled planning mood. Full body capybara and clipboard visible.
+
+抱团连锁:
+
+Production mobile game tactical card illustration, hand-painted gouache and colored pencil on warm cream, muted sage green and apricot palette, caramel brown ink outlines, rounded ugly-cute mochi animals matching a cozy tiny office. Single isolated composition, transparent background, readable at 140px, no words, letters, numbers, logos, UI or border. Square composition with generous clear padding. A round sage green frog holding coffee hugs a round cream cat and a peach hamster together in a close group. Three tiny golden energy sparkles link the hugging animals, with a soft circular sage arc behind them suggesting bringing scattered teammates together. Convey teamwork, gathering and chain merging, cuddly compact composition. All three characters fully visible.
