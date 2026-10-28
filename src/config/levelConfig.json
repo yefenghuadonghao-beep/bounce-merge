@@ -17,14 +17,16 @@
         "y": 1050,
         "width": 310,
         "height": 18,
-        "angle": 0.24
+        "angle": 0.24,
+        "skin": "ruler"
       },
       {
         "x": 520,
         "y": 1050,
         "width": 310,
         "height": 18,
-        "angle": -0.24
+        "angle": -0.24,
+        "skin": "ruler"
       }
     ],
     "presetBalls": [
@@ -88,7 +90,8 @@
       {
         "x": 360,
         "y": 570,
-        "radius": 55
+        "radius": 55,
+        "skin": "clock"
       }
     ],
     "presetBalls": [
@@ -127,14 +130,16 @@
         "y": 1050,
         "width": 310,
         "height": 18,
-        "angle": 0.24
+        "angle": 0.24,
+        "skin": "ruler"
       },
       {
         "x": 520,
         "y": 1050,
         "width": 310,
         "height": 18,
-        "angle": -0.24
+        "angle": -0.24,
+        "skin": "ruler"
       }
     ],
     "presetBalls": [
@@ -179,21 +184,24 @@
         "y": 620,
         "width": 250,
         "height": 18,
-        "angle": 0
+        "angle": 0,
+        "skin": "ruler"
       },
       {
         "x": 200,
         "y": 1050,
         "width": 310,
         "height": 18,
-        "angle": 0.24
+        "angle": 0.24,
+        "skin": "ruler"
       },
       {
         "x": 520,
         "y": 1050,
         "width": 310,
         "height": 18,
-        "angle": -0.24
+        "angle": -0.24,
+        "skin": "ruler"
       }
     ],
     "presetBalls": [
@@ -262,7 +270,8 @@
       {
         "x": 360,
         "y": 550,
-        "radius": 48
+        "radius": 48,
+        "skin": "clock"
       }
     ],
     "presetBalls": [
@@ -302,28 +311,32 @@
       {
         "x": 360,
         "y": 480,
-        "radius": 38
+        "radius": 38,
+        "skin": "coaster"
       },
       {
         "x": 360,
         "y": 700,
         "width": 220,
         "height": 18,
-        "angle": 0
+        "angle": 0,
+        "skin": "notebook"
       },
       {
         "x": 200,
         "y": 1050,
         "width": 310,
         "height": 18,
-        "angle": 0.24
+        "angle": 0.24,
+        "skin": "ruler"
       },
       {
         "x": 520,
         "y": 1050,
         "width": 310,
         "height": 18,
-        "angle": -0.24
+        "angle": -0.24,
+        "skin": "ruler"
       }
     ],
     "presetBalls": [

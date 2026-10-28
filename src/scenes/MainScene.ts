@@ -7,7 +7,8 @@ import { ShotQueue } from '../core/ShotQueue';
 import { AfterimageSystem } from '../core/AfterimageSystem';
 import afterimageConfigData from '../config/afterimageConfig.json';
 import { button, characterNames, ink, panel, paper, FONT_FAMILY } from '../ui/theme';
-import { loadOfficeArt, officeProp } from '../ui/officeArt';
+import { mergeBurst, paperConfetti } from '../ui/officeEffects';
+import { loadOfficeArt, officeProp, officeObstacle } from '../ui/officeArt';
 import { setupHiDpi } from '../ui/hidpi';
 import { getPlatform } from '../platform';
 import { WorkstationManager } from '../core/WorkstationManager';
@@ -147,10 +148,15 @@ export class MainScene extends Phaser.Scene {
     paper(this);
     this.add.image(360, 640, 'office-room').setDisplaySize(850, 1280).setAlpha(0.25);
     panel(this, 45, 220, 630, 880, 0xfffcf2);
+    const binding = this.add.graphics();
+    for (let y = 480; y < 1040; y += 80) {
+      binding.fillStyle(0xc5b497, 0.5).fillCircle(64, y, 4).fillCircle(656, y, 4);
+      binding.lineStyle(2, 0x9d8c6f, 0.6).lineBetween(44, y, 64, y).lineBetween(656, y, 676, y);
+    }
     const decor = this.gameController.getLevelConfig().level % 3;
     officeProp(this, 590, 945, decor + 1, 125).setAlpha(0.10);
     officeProp(this, 125, 670, 6, 100).setAlpha(0.08);
-    const chapterTitle = this.afterimageMode ? '残影模式 · 轨迹成路' : '第一章 · 打工日常';
+    const chapterTitle = this.afterimageMode ? '残影手帐 · 轨迹成路' : '桌面弹珠 · 下班计划';
     this.add.text(82, 246, chapterTitle, { fontFamily: FONT_FAMILY, fontSize: '23px', color: ink, fontStyle: 'bold' });
     const stageTitle = this.afterimageMode ? '残影弹珠' : (this.gameController.getLevelConfig().title ?? '碰一碰就下班');
     this.add.text(360, 800, stageTitle, {
@@ -323,22 +329,17 @@ export class MainScene extends Phaser.Scene {
     const obstacles = this.gameController.getLevelConfig().obstacles ?? [];
     for (let i = 0; i < obstacles.length; i++) {
       const obstacle = obstacles[i];
+      officeObstacle(this, obstacle);
       if (obstacle.radius) {
-        this.add.circle(obstacle.x + 3, obstacle.y + 5, obstacle.radius, 0xc0ae8c, 0.45);
-        const peg = this.add.circle(obstacle.x, obstacle.y, obstacle.radius, 0xe9be69).setStrokeStyle(3, 0x49392d);
-        this.add.circle(obstacle.x - obstacle.radius * 0.25, obstacle.y - obstacle.radius * 0.25, obstacle.radius * 0.28, 0xffedb2, 0.8);
-        this.matter.add.gameObject(peg, { isStatic: true, shape: { type: 'circle', radius: obstacle.radius }, restitution: 0.65, label: 'peg' });
+        this.matter.add.circle(obstacle.x, obstacle.y, obstacle.radius, { isStatic: true, restitution: 0.65, label: 'peg' });
       } else {
         const width = obstacle.width ?? 100;
         const height = obstacle.height ?? 18;
         const angle = obstacle.angle ?? 0;
-        this.add.rectangle(obstacle.x + 2, obstacle.y + 6, width, height + 3, 0xb7a384, 0.4).setRotation(angle);
-        this.add.rectangle(obstacle.x, obstacle.y, width, height, 0xb9c9a1).setRotation(angle).setStrokeStyle(3, 0x49392d);
-        this.add.rectangle(obstacle.x, obstacle.y - 2, width - 10, 3, 0xe2e9cd, 0.7).setRotation(angle);
         this.matter.add.rectangle(obstacle.x, obstacle.y, width, height, { isStatic: true, angle, restitution: 0.2, friction: 0.005, label: 'floor' });
       }
     }
-    this.add.rectangle(360, 1105, 620, 10, 0xb9c9a1).setStrokeStyle(2, 0x49392d);
+    officeObstacle(this, { x: 360, y: 1105, width: 620, height: 10, skin: 'notebook' });
 
     // Physics walls aligned with visual rails
     const wallThickness = 10;
@@ -648,32 +649,17 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createMergeEffect(x: number, y: number, color: number) {
-    const circle = this.add.circle(x, y, 10, color, 0.8);
-    this.tweens.add({
-      targets: circle,
-      radius: 40,
-      alpha: 0,
-      duration: 300,
-      onComplete: () => circle.destroy()
-    });
-
-    for (let i = 0; i < 8; i++) {
-      const angle = (Math.PI * 2 * i) / 8;
-      const particle = this.add.circle(x, y, 4, color);
-      this.tweens.add({
-        targets: particle,
-        x: x + Math.cos(angle) * 50,
-        y: y + Math.sin(angle) * 50,
-        alpha: 0,
-        duration: 400,
-        onComplete: () => particle.destroy()
-      });
-    }
+    mergeBurst(this, x, y, color, this.gameController.getGameState().combo, this.afterimageMode);
   }
 
   private showScorePopup(x: number, y: number, score: number, level: number) {
     const lines = ['', '', '脑子放空了', '我没事，真的', '咖啡续命！', '卡打了，人走了', '正在加载灵魂', '摸鱼使我快乐', '躺平也很可爱', '先溜为敬！', '准点下班！'];
-    const popupY = Math.max(500, y);
+    while (this.scorePopups.length >= 3) {
+      const old = this.scorePopups.shift()!;
+      this.tweens.killTweensOf(old);
+      old.destroy();
+    }
+    const popupY = Math.min(1000, Math.max(500, y));
     const text = this.add.text(Phaser.Math.Clamp(x, 150, 570), popupY, `${lines[level]}\n+${score}`, {
       fontFamily: FONT_FAMILY, fontSize: '24px',
       color: '#49392d',
@@ -738,17 +724,30 @@ export class MainScene extends Phaser.Scene {
     }
     const state = this.gameController.getGameState();
     const target = this.gameController.getLevelConfig().targetBallLevel ?? state.highestBallLevel;
-    const ink = '#3d3028';
-    const shade = this.add.rectangle(360, 660, 620, 870, 0xfffcf2, 0.9).setDepth(20);
-    const hero = this.add.image(360, 610, 'characters', `ball_${target}`).setDisplaySize(190, 190).setDepth(21);
-    const title = this.add.text(360, 455, '坏情绪，碰掉了！', { fontFamily: FONT_FAMILY, fontSize: '42px', color: ink, fontStyle: 'bold' }).setOrigin(0.5).setDepth(21);
-    const subtitle = this.add.text(360, 775, `${characterNames[target]} 到岗\n本轮最高 ${this.gameController.getRunSummary().bestCombo} 连合`, {
-      fontFamily: FONT_FAMILY, fontSize: '28px', color: ink, align: 'center', lineSpacing: 16
-    }).setOrigin(0.5).setDepth(21);
-    
-    this.victoryOverlay = this.add.container(0, 0, [shade, hero, title, subtitle]);
-    this.tweens.add({ targets: hero, y: 580, duration: 450, yoyo: true, repeat: 1, ease: 'Sine.InOut' });
-    this.tweens.add({ targets: shade, alpha: { from: 0, to: 1 }, duration: 200 });
+    const shade = this.add.rectangle(360, 660, 620, 870, 0xfff9eb, 0.96);
+    const ticket = this.add.graphics();
+    ticket.fillStyle(0xf1e5cd).fillRoundedRect(106, 355, 508, 580, 28);
+    ticket.lineStyle(2, 0xc7b38f).strokeRoundedRect(106, 355, 508, 580, 28);
+    ticket.lineStyle(2, 0xd1bd98);
+    for (let x = 128; x < 590; x += 20) ticket.lineBetween(x, 858, x + 10, 858);
+    const title = this.add.text(360, 412, '坏情绪，碰掉了！', { fontFamily: FONT_FAMILY, fontSize: '38px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
+    const hero = this.add.image(360, 596, 'characters', `ball_${target}`).setDisplaySize(180, 180);
+    const stage = this.gameController.getLevelConfig();
+    const summary = this.gameController.getRunSummary();
+    const stamp = this.add.text(514, 720, '准点\n下班', { fontFamily: FONT_FAMILY, fontSize: '27px', color: '#af6549', align: 'center', backgroundColor: '#fff3db', padding: { x: 12, y: 8 } }).setOrigin(0.5).setAngle(-12);
+    const subtitle = this.add.text(360, 750, `${characterNames[target]} 到岗
+最高 ${summary.bestCombo} 连合 · 合成 ${summary.merges} 次`, { fontFamily: FONT_FAMILY, fontSize: '25px', color: ink, align: 'center', lineSpacing: 12 }).setOrigin(0.5);
+    const footer = this.add.text(360, 893, stage.chapterEnd ? '全员到齐，今天到此为止' : '带着好心情，选下一关战术', { fontFamily: FONT_FAMILY, fontSize: '21px', color: '#8b7c64' }).setOrigin(0.5);
+    const root = this.add.container(0, 0, [shade, ticket, title, hero, subtitle, stamp, footer]).setDepth(30);
+    this.victoryOverlay = root;
+    root.setAlpha(0);
+    this.tweens.add({ targets: root, alpha: 1, duration: 200 });
+    hero.setDisplaySize(90, 90);
+    this.tweens.add({ targets: hero, displayWidth: 180, displayHeight: 180, duration: 500, ease: 'Back.Out' });
+    this.tweens.add({ targets: hero, y: 578, delay: 500, duration: 550, yoyo: true, ease: 'Sine.easeInOut' });
+    stamp.setScale(2.4).setAlpha(0);
+    this.tweens.add({ targets: stamp, scaleX: 1, scaleY: 1, alpha: 1, delay: 450, duration: 230, ease: 'Cubic.easeIn' });
+    paperConfetti(this, root);
   }
 
   update(time: number) {
@@ -819,7 +818,7 @@ export class MainScene extends Phaser.Scene {
       
       // 开发模式下可禁用自动转场
       if (!this.noAutoTransition) {
-        this.time.delayedCall(1700, () => {
+        this.time.delayedCall(2200, () => {
           const destination = this.gameController.getLevelConfig().chapterEnd ? 'GameOverScene' : 'UpgradeScene';
           this.scene.start(destination, { gameController: this.gameController, gameConfig: this.gameConfig, won: true, afterimageMode: this.afterimageMode });
         });

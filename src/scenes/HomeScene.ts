@@ -5,7 +5,7 @@ import { GameController } from '../core/GameController';
 import { GameConfig } from '../types';
 import { button, ink, panel, paper, FONT_FAMILY, characterNames } from '../ui/theme';
 import { setupHiDpi } from '../ui/hidpi';
-import { loadOfficeArt } from '../ui/officeArt';
+import { loadOfficeArt, officeObstacle } from '../ui/officeArt';
 
 export class HomeScene extends Phaser.Scene {
   private gameController!: GameController;
@@ -100,8 +100,7 @@ export class HomeScene extends Phaser.Scene {
     const obstacles = stage.obstacles ?? [];
     for (let i = 0; i < obstacles.length; i++) {
       const obstacle = obstacles[i];
-      if ('radius' in obstacle && obstacle.radius) this.add.circle(px(obstacle.x), py(obstacle.y), obstacle.radius * 0.355, 0xe9be69).setStrokeStyle(1, 0x776b50);
-      else this.add.rectangle(px(obstacle.x), py(obstacle.y), (obstacle.width ?? 100) * 0.355, 7, 0x9bab86).setRotation(obstacle.angle ?? 0);
+      officeObstacle(this, { ...obstacle, x: px(obstacle.x), y: py(obstacle.y), radius: 'radius' in obstacle && obstacle.radius ? obstacle.radius * 0.355 : undefined, width: (obstacle.width ?? 100) * 0.355, height: 7 });
     }
     const presets = stage.presetBalls ?? [];
     for (let i = 0; i < presets.length; i++) {

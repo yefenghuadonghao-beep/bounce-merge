@@ -5,8 +5,7 @@ import { battlePlanEffects, battlePlans } from '../core/BattlePlan';
 import { button, characterNames, ink, panel, paper, FONT_FAMILY } from '../ui/theme';
 import { setupHiDpi } from '../ui/hidpi';
 import { getPlatform } from '../platform';
-import { assetUrl } from '../platform/assets';
-import characterAtlas from '../config/characterAtlas.json';
+import { loadOfficeArt, officeObstacle } from '../ui/officeArt';
 
 export class UpgradeScene extends Phaser.Scene {
   private gameController!: GameController;
@@ -26,7 +25,7 @@ export class UpgradeScene extends Phaser.Scene {
   }
 
   preload() {
-    if (!this.textures.exists('characters')) this.load.atlas('characters', assetUrl('assets/characters/office-mochi.png'), characterAtlas);
+    loadOfficeArt(this);
   }
 
   create() {
@@ -69,13 +68,7 @@ export class UpgradeScene extends Phaser.Scene {
       const obstacle = obstacles[i];
       const x = 495 + obstacle.x * 0.21;
       const y = 185 + obstacle.y * 0.125;
-      if (obstacle.radius) {
-        g.fillStyle(0xd6ab63).fillCircle(x, y, obstacle.radius * 0.16);
-      } else {
-        const dx = Math.cos(obstacle.angle ?? 0) * (obstacle.width ?? 0) * 0.105;
-        const dy = Math.sin(obstacle.angle ?? 0) * (obstacle.width ?? 0) * 0.0625;
-        g.lineStyle(4, 0x94aa7f).lineBetween(x - dx, y - dy, x + dx, y + dy);
-      }
+      officeObstacle(this, { ...obstacle, x, y, radius: obstacle.radius ? obstacle.radius * 0.16 : undefined, width: (obstacle.width ?? 100) * 0.21, height: 4 });
     }
     const seeds = level.presetBalls ?? [];
     for (let i = 0; i < seeds.length; i++) {

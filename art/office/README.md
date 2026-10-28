@@ -22,3 +22,15 @@ Use case: stylized-concept. Asset type: transparent sprite sheet for cozy hand-p
 工位保留 12 格可操作区域与原经济配置，图片化桌面/物件/员工，加入待机、合成和收币补间。收益刷新只改文字，避免每秒销毁角色导致动画重启。拖拽物品仍遵循原同款同等级规则。此前目录里的拖拽、满工位合成和生命周期修复一起保留。
 
 验证：240 项自动测试；网页生产构建；微信包构建（约 2.42 MB）；浏览器实测首页、两种路线、关卡简报、进入关卡、收件箱拖入桌面、同款合成、返回和存档。微信项目仍缺 weapp-adapter，因此未完成微信真机验收。
+
+## 关卡机关与演出（第二轮）
+
+新增内置 image_gen 生成的 `assets/office/ruler.webp`、`notebook.webp`、`coaster.webp`、`clock.webp`。原图按四个物件裁切透明留白，分别输出横向 768×96 和圆形 256×256。关卡配置的 `skin` 选择材质；图片直接使用该机关的位置、宽高、半径、角度，和物理几何共用配置。简报及选卡地图也显示相同材质。生图未改变机关尺寸、反弹参数、队列或目标数值。
+
+合成采用短时光环、手绘星点、连锁/共鸣双环，浮字最多同时显示三条。通关采用高于游戏层的下班票据、角色弹出、印章落下和纸屑，2.2 秒后转场。章节结算同步办公室环境图和角色待机。
+
+验收：243 项测试通过，涵盖 18 种后期卡牌路线、关卡物理回放和材质尺寸/轮廓类型；网页构建和微信构建通过。浏览器实际通过普通第 1 关与残影第 1 轮，检查第 8 关材质和布局，生产构建通过第 1 关并自动进入选卡页。微信包约 2.50 MB，依然缺少 weapp-adapter，未进行真机测试。
+
+### 机关最终生图提示词
+
+Use case: stylized-concept. Production texture atlas for a hand painted cozy office pinball mobile game. Transparent background. Square canvas in precise 2 columns by 2 rows, four isolated objects, generous empty space between objects. Top-left: a straight horizontal wooden ruler, VERY thin long rectangle, about 8 to 1 width to height, warm honey wood, small engraved tick marks, no numbers. Top-right: a single closed slim sage green notebook seen EDGE ON, VERY thin horizontal rectangular book spine, about 8 to 1 width to height, rounded corners, cream paper edge, tiny orange ribbon kept inside rectangular silhouette. Bottom-left: perfectly circular cream coffee coaster seen directly top down, caramel rim, small brown paw imprint centered, entirely inside circular boundary. Bottom-right: perfectly circular mint green office wall clock seen directly front on, cream face, small brown hands, entirely inside circular boundary. No perspective on the rectangular objects; their top surfaces must be flat horizontal so a physics ball can bounce off their exact edge. Warm cream paper, sage and apricot muted colors, soft gouache texture, dark brown pencil outlines matching an illustrated tiny office. No lettering, no logos, no shadows outside objects, no extra ornaments, no frame, no characters. Four separate assets only.

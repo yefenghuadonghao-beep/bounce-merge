@@ -3,6 +3,8 @@ import { GameController } from '../core/GameController';
 import { GameConfig } from '../types';
 import { getPlatform } from '../platform';
 import { button, characterNames, ink, panel, paper, FONT_FAMILY } from '../ui/theme';
+import { loadOfficeArt } from '../ui/officeArt';
+import { paperConfetti } from '../ui/officeEffects';
 import { setupHiDpi } from '../ui/hidpi';
 
 export class GameOverScene extends Phaser.Scene {
@@ -24,11 +26,14 @@ export class GameOverScene extends Phaser.Scene {
     this.won = data.won ?? false;
   }
 
+  preload() { loadOfficeArt(this); }
+
   create() {
     setupHiDpi(this);
     const state = this.gameController.getGameState();
     const summary = this.gameController.getRunSummary();
     paper(this);
+    this.add.image(360, 640, 'office-room').setDisplaySize(850, 1280).setAlpha(0.18);
     const winTitle = this.afterimageMode ? '残影挑战，全员下班！' : '第一章，全员下班！';
     this.add.text(360, 160, this.won ? winTitle : '今天也辛苦啦', { fontFamily: FONT_FAMILY, fontSize: '43px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(360, 225, `情绪释放到第 ${state.currentLevel} 关`, { fontFamily: FONT_FAMILY, fontSize: '27px', color: '#8b7c64' }).setOrigin(0.5);
@@ -40,7 +45,14 @@ export class GameOverScene extends Phaser.Scene {
     this.add.text(360, 760, `最高 ${summary.bestCombo} 连合 · 碰掉 ${summary.merges} 次坏情绪\n下一次，试试让连合不断档！`, {
       fontFamily: FONT_FAMILY, fontSize: '24px', color: '#8b7c64', align: 'center', lineSpacing: 14
     }).setOrigin(0.5);
-    if (this.textures.exists('characters')) this.add.image(360, 1175, 'characters', `ball_${summary.highest}`).setDisplaySize(90, 90);
+    if (this.textures.exists('characters')) {
+      const hero = this.add.image(360, 1175, 'characters', `ball_${summary.highest}`).setDisplaySize(90, 90);
+      this.tweens.add({ targets: hero, y: 1166, angle: 4, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    }
+    if (this.won) {
+      const celebration = this.add.container(0, 0).setDepth(20);
+      paperConfetti(this, celebration);
+    }
     button(this, 360, 930, 440, this.won ? '再挑战一次' : '重试本关', () => {
       if (this.won) { this.restart(); return; }
       if (this.restarting) return;
