@@ -41,6 +41,16 @@ describe('retry and personal record', () => {
     expect(label.setText).not.toHaveBeenCalled();
   });
 
+  it('keeps afterimage records separate from the classic chapter', async () => {
+    localStorage.setItem('bouncemergegame_best_score', '100');
+    scene.init({ gameController: controller, gameConfig: config, afterimageMode: true });
+    controller.processMerge(2, 1000);
+    const label = { active: true, setText: vi.fn() };
+    await scene['saveRecord'](label as unknown as Phaser.GameObjects.Text);
+    expect(localStorage.getItem('bouncemergegame_best_score')).toBe('100');
+    expect(localStorage.getItem('bouncemergegame_afterimage_best_score')).toBe('50');
+  });
+
   it('restarts only once and resets score, level and shots', () => {
     controller.processMerge(2, 1000);
     controller.advanceLevel();

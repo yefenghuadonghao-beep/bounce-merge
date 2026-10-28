@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GameController } from '../core/GameController';
 import { GameConfig, AfterimageConfig } from '../types';
 import { MergeCharge } from '../core/MergeCharge';
+import { battlePlanEffects } from '../core/BattlePlan';
 import { ShotQueue } from '../core/ShotQueue';
 import { AfterimageSystem } from '../core/AfterimageSystem';
 import { assetUrl } from '../platform/assets';
@@ -16,12 +17,14 @@ interface Ball {
   sprite: Phaser.GameObjects.Arc | Phaser.GameObjects.Image;
   level: number;
   trackId?: number;
+  trackStartedAt?: number;
 }
 
 interface AfterimagePhysics {
   trackId: number;
   bodies: MatterJS.BodyType[];
   graphics: Phaser.GameObjects.Graphics;
+  marker?: Phaser.GameObjects.Image;
 }
 
 export class MainScene extends Phaser.Scene {
@@ -30,6 +33,8 @@ export class MainScene extends Phaser.Scene {
   private balls: Ball[] = [];
   private shotQueue!: ShotQueue;
   private launcherPreview!: Phaser.GameObjects.Image;
+  private thirdPreview?: Phaser.GameObjects.Image;
+  private rotateQueue = false;
   private nextPreview!: Phaser.GameObjects.Image;
   private charge = new MergeCharge();
   private chargeBar?: Phaser.GameObjects.Graphics;
@@ -59,6 +64,7 @@ export class MainScene extends Phaser.Scene {
   private afterimageConfig?: AfterimageConfig;
   private afterimageGraphics: Map<number, AfterimagePhysics> = new Map();
   private lastMergeCheck = 0;
+  private afterimageMergeCount = 0;
   
   // 边界与收纳盒内沿对齐。
   private readonly RAIL_MARGIN = 50;
@@ -92,12 +98,14 @@ export class MainScene extends Phaser.Scene {
     this.scorePopups = [];
     this.afterimageGraphics.clear();
     this.lastMergeCheck = 0;
+    this.afterimageMergeCount = 0;
+    this.afterimageSystem = undefined;
     
     if (this.afterimageMode) {
       this.afterimageConfig = afterimageConfigData as AfterimageConfig;
       this.afterimageSystem = new AfterimageSystem(this.afterimageConfig, {
-        onMerge: (track1Id, track2Id, newLevel, x, y) => {
-          this.handleAfterimageMerge(track1Id, track2Id, newLevel, x, y);
+        onMerge: (track1Id, track2Id, newLevel, x, y, newTrackId) => {
+          this.handleAfterimageMerge(track1Id, track2Id, newLevel, x, y, newTrackId);
         },
         onFade: (trackId) => {
           this.removeAfterimagePhysics(trackId);
@@ -112,6 +120,12 @@ export class MainScene extends Phaser.Scene {
     this.shotQueue = new ShotQueue(base, Math.min(target - 1, this.gameController.getMaxBallLevel()), Math.random, stage.shotSequence);
     this.shakesRemaining = stage.shakes ?? 1;
     this.swapsRemaining = stage.swaps ?? 2;
+    const plan = battlePlanEffects(state.activePlan, stage);
+    this.shakesRemaining += plan.shakes;
+    this.swapsRemaining += plan.swaps;
+    this.charge = new MergeCharge(plan.chargeThreshold, plan.chargeLimit);
+    this.rotateQueue = plan.rotateQueue;
+    this.thirdPreview = undefined;
     const upgrades = state.upgrades;
     for (let i = 0, length = upgrades.length; i < length; i++) {
       if (upgrades[i].id === 'extra_shake') this.shakesRemaining += upgrades[i].value;
@@ -173,6 +187,13 @@ export class MainScene extends Phaser.Scene {
       this.gameController.retryLevel();
       this.scene.restart({ gameController: this.gameController, gameConfig: this.gameConfig, afterimageMode: this.afterimageMode });
     });
+    const home = this.add.text(488, 279, '返回首页', { fontFamily: FONT_FAMILY, fontSize: '24px', color: ink, backgroundColor: '#f3bb90', padding: { x: 16, y: 12 } }).setInteractive({ useHandCursor: true });
+    home.on('pointerdown', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      if (this.resolving) return;
+      this.resolving = true;
+      this.scene.start('HomeScene', { gameController: this.gameController, gameConfig: this.gameConfig });
+    });
     const sound = this.add.text(650, 244, this.platform.isSoundEnabled() ? '音效 开' : '音效 关', {
       fontFamily: FONT_FAMILY, fontSize: '21px', color: ink, backgroundColor: '#fff8ef', padding: { x: 12, y: 10 }
     }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
@@ -205,6 +226,12 @@ export class MainScene extends Phaser.Scene {
     });
     
     if (this.shotQueue.peek()[0]) {
+      if (this.afterimageMode && this.afterimageSystem) {
+        this.afterimageSystem.advanceShot();
+        ball.trackId = this.afterimageSystem.startTracking(ballLevel);
+        ball.trackStartedAt = this.time.now;
+        ball.body.collisionFilter.group = -ball.trackId;
+      }
       this.shotQueue.take();
       this.gameController.useShot();
     }
@@ -338,8 +365,22 @@ export class MainScene extends Phaser.Scene {
     this.uiTexts.goal = this.add.text(126, 86, `合出${characterNames[target]}`, { fontFamily: FONT_FAMILY, fontSize: '27px', color: ink, fontStyle: 'bold' });
     this.uiTexts.progress = this.add.text(126, 130, '', { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#8b7c64' });
     this.uiTexts.shots = this.add.text(48, 168, '', { fontFamily: FONT_FAMILY, fontSize: '21px', color: ink });
-    this.add.text(606, 78, '下一位', { fontFamily: FONT_FAMILY, fontSize: '18px', color: '#8b7c64' }).setOrigin(0.5);
+    this.add.text(606, 78, this.rotateQueue ? '点选换球' : '下一位', { fontFamily: FONT_FAMILY, fontSize: '18px', color: '#8b7c64' }).setOrigin(0.5);
     this.nextPreview = this.add.image(606, 129, 'characters', `ball_${this.shotQueue.peek()[1]}`).setDisplaySize(50, 50);
+    if (this.rotateQueue) {
+      this.nextPreview.setPosition(566, 129);
+      this.thirdPreview = this.add.image(650, 129, 'characters', `ball_${this.shotQueue.at(2)}`).setDisplaySize(50, 50);
+      const previews = [this.nextPreview, this.thirdPreview];
+      for (let i = 0; i < previews.length; i++) {
+        previews[i].setInteractive({ useHandCursor: true });
+        previews[i].on('pointerdown', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+          event.stopPropagation();
+          this.swapBall(i + 1);
+        });
+      }
+    }
+    const plan = this.gameController.getGameState().activePlan;
+    this.add.text(666, 168, plan ? `本关战术：${plan.name}` : '先熟悉弹道，再选战术', { fontFamily: FONT_FAMILY, fontSize: '19px', color: '#8b6041' }).setOrigin(1, 0);
     this.comboText = this.add.text(360, 404, '', {
       fontFamily: FONT_FAMILY, fontSize: '42px', color: '#fff7cd', fontStyle: 'bold', stroke: '#785d42', strokeThickness: 5
     }).setOrigin(0.5).setDepth(10).setVisible(false);
@@ -347,17 +388,23 @@ export class MainScene extends Phaser.Scene {
 
   private updateUI() {
     const state = this.gameController.getGameState();
-    this.uiTexts.level.setText(`${state.currentLevel}/8 · ${this.gameController.getLevelConfig().title ?? "下班团子"}`);
+    this.uiTexts.level.setText(`${state.currentLevel}/${this.gameController.getLevelCount()} · ${this.gameController.getLevelConfig().title ?? "下班团子"}`);
     this.uiTexts.score.setText(`快乐值 ${state.score}`);
     this.uiTexts.shots.setText(`还有 ${state.shotsRemaining} 球`);
     this.uiTexts.progress.setText(state.highestBallLevel === 1 ? '同款相碰 → 升一级' : `本关合成：${characterNames[state.highestBallLevel]}`);
-    this.shakeLabel?.setText(`抱团取暖 ×${this.shakesRemaining}`);
-    this.swapLabel?.setText(`换个搭子 ×${this.swapsRemaining}`);
+    if (this.afterimageMode) {
+      const requiredMerges = this.gameController.getLevelConfig().requiredAfterimageMerges ?? 1;
+      this.uiTexts.progress.setText(`残影共鸣 ${Math.min(requiredMerges, this.afterimageMergeCount)}/${requiredMerges} · 最高 ${characterNames[state.highestBallLevel]}`);
+    }
+    const shakeName = this.afterimageMode ? '清影抱团' : '抱团取暖';
+    this.shakeLabel?.setText(`${shakeName} ×${this.shakesRemaining}`);
+    const swapName = this.rotateQueue ? '轮换三球' : '换个搭子';
+    this.swapLabel?.setText(`${swapName} ×${this.swapsRemaining}`);
     this.shakeLabel?.parentContainer?.setAlpha(this.shakesRemaining > 0 ? 1 : 0.45);
     this.swapLabel?.parentContainer?.setAlpha(this.swapsRemaining > 0 ? 1 : 0.45);
     if (this.uiTexts.charge) {
       const full = this.charge.rewards >= this.charge.limit;
-      this.uiTexts.charge.setText(full ? '本关充能奖励已领满' : `抱团充能 ${this.charge.charge}/4 · 3 连合后双倍充能`);
+      this.uiTexts.charge.setText(full ? '本关充能奖励已领满' : `充能 ${this.charge.charge}/${this.charge.threshold} · 3 连合双倍 · 奖励 ${this.charge.rewards}/${this.charge.limit}`);
       this.chargeBar?.clear().fillStyle(0xe6decd).fillRoundedRect(180, 360, 360, 8, 4);
       const progress = full ? 1 : this.charge.charge / this.charge.threshold;
       if (progress > 0) this.chargeBar?.fillStyle(0xee976e).fillRoundedRect(180, 360, 360 * progress, 8, 4);
@@ -365,6 +412,7 @@ export class MainScene extends Phaser.Scene {
     const queue = this.shotQueue.peek();
     this.launcherPreview?.setTexture('characters', `ball_${queue[0]}`).setDisplaySize(56, 56);
     this.nextPreview.setTexture('characters', `ball_${queue[1]}`).setDisplaySize(50, 50);
+    this.thirdPreview?.setTexture('characters', `ball_${queue[2]}`);
     if (state.combo > 1) {
       this.comboText.setText(`${state.combo} 连合！继续碰！`).setVisible(true);
       this.tweens.killTweensOf(this.comboText);
@@ -372,13 +420,19 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  private swapBall() {
+  private swapBall(slot?: number) {
     if (this.resolving || this.swapsRemaining <= 0 || !this.canShoot) return;
-    if (this.shotQueue.at(0) === this.shotQueue.at(1)) {
-      this.uiTexts.hint.setText('这两位一样，留着机会给下一次吧');
+    const samePair = this.shotQueue.at(0) === this.shotQueue.at(1);
+    const sameQueue = samePair && (!this.rotateQueue || this.shotQueue.at(0) === this.shotQueue.at(2));
+    if (slot !== undefined && !this.rotateQueue) return;
+    const sameSelected = slot !== undefined && this.shotQueue.at(0) === this.shotQueue.at(slot);
+    if (sameQueue || sameSelected) {
+      this.uiTexts.hint.setText('可换的都是同款，留着机会给下一次吧');
       return;
     }
-    this.shotQueue.swap();
+    if (slot !== undefined) this.shotQueue.swap(slot);
+    else if (this.rotateQueue) this.shotQueue.rotate();
+    else this.shotQueue.swap();
     this.swapsRemaining--;
     this.updateUI();
     this.platform.playSound('swap');
@@ -387,6 +441,8 @@ export class MainScene extends Phaser.Scene {
   private shakeBoard() {
     if (this.resolving || this.shakesRemaining <= 0 || this.balls.length === 0) return;
     this.shakesRemaining--;
+    const plan = battlePlanEffects(this.gameController.getGameState().activePlan, this.gameController.getLevelConfig());
+    this.afterimageSystem?.clearSettledTracks(plan.preserveCores);
     const balls = this.balls;
     for (let i = 0, length = balls.length; i < length; i++) {
       const body = balls[i].body;
@@ -478,6 +534,12 @@ export class MainScene extends Phaser.Scene {
       x: Math.cos(this.aimAngle) * speed,
       y: Math.sin(this.aimAngle) * speed
     });
+    if (this.afterimageMode && this.afterimageSystem) {
+      this.afterimageSystem.advanceShot();
+      ball.trackId = this.afterimageSystem.startTracking(level);
+      ball.trackStartedAt = this.time.now;
+      ball.body.collisionFilter.group = -ball.trackId;
+    }
     this.shotQueue.take();
     this.gameController.useShot();
     this.platform.playSound('shot');
@@ -531,7 +593,9 @@ export class MainScene extends Phaser.Scene {
     this.platform.playSound(`merge_${newLevel}_${state.combo}`);
     if (this.charge.add(state.combo)) {
       this.shakesRemaining++;
-      const reward = this.add.text(360, 460, '充满了！抱团取暖 +1', {
+      const refunded = this.refundPlanSwap();
+      const rewardText = refunded ? '抱团 +1 · 换球返还 +1' : '充满了！抱团取暖 +1';
+      const reward = this.add.text(360, 460, rewardText, {
         fontFamily: FONT_FAMILY, fontSize: '30px', color: '#547044', backgroundColor: '#fff9e7', padding: { x: 16, y: 10 }
       }).setOrigin(0.5).setDepth(15);
       this.tweens.add({ targets: reward, y: 420, alpha: 0, delay: 850, duration: 450, onComplete: () => reward.destroy() });
@@ -556,7 +620,15 @@ export class MainScene extends Phaser.Scene {
     this.updateUI();
   }
 
+  private refundPlanSwap() {
+    const plan = battlePlanEffects(this.gameController.getGameState().activePlan, this.gameController.getLevelConfig());
+    const refund = plan.refundSwapOnCharge && this.charge.rewards === 1;
+    if (refund) this.swapsRemaining++;
+    return refund;
+  }
+
   private removeBall(ball: Ball) {
+    this.finalizeBallTrack(ball);
     const index = this.balls.indexOf(ball);
     if (index > -1) {
       this.balls.splice(index, 1);
@@ -592,7 +664,8 @@ export class MainScene extends Phaser.Scene {
 
   private showScorePopup(x: number, y: number, score: number, level: number) {
     const lines = ['', '', '脑子放空了', '我没事，真的', '咖啡续命！', '卡打了，人走了', '正在加载灵魂', '摸鱼使我快乐', '躺平也很可爱', '先溜为敬！', '准点下班！'];
-    const text = this.add.text(Phaser.Math.Clamp(x, 150, 570), y, `${lines[level]}\n+${score}`, {
+    const popupY = Math.max(500, y);
+    const text = this.add.text(Phaser.Math.Clamp(x, 150, 570), popupY, `${lines[level]}\n+${score}`, {
       fontFamily: FONT_FAMILY, fontSize: '24px',
       color: '#49392d',
       align: 'center', stroke: '#fff9e7', strokeThickness: 5,
@@ -603,7 +676,7 @@ export class MainScene extends Phaser.Scene {
 
     this.tweens.add({
       targets: text,
-      y: y - 50,
+      y: popupY - 50,
       alpha: 0,
       duration: 1000,
       onComplete: () => {
@@ -645,6 +718,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   update(time: number) {
+    if (this.resolving) return;
     this.gameController.updateCombo(time);
     const state = this.gameController.getGameState();
     this.comboBar?.clear();
@@ -653,7 +727,7 @@ export class MainScene extends Phaser.Scene {
       this.comboBar?.fillStyle(0xee976e).fillRect(240, 436, 240 * remaining, 5);
     }
     
-    if (this.afterimageMode) {
+    if (this.afterimageMode && !this.resolving) {
       this.updateAfterimages();
       
       if (this.afterimageSystem && this.afterimageConfig && time - this.lastMergeCheck > this.afterimageConfig.mergeCheckInterval) {
@@ -666,6 +740,13 @@ export class MainScene extends Phaser.Scene {
     if (this.isAiming) {
       const next = this.shotQueue.at(0);
       const ringRadius = (this.gameController.getBallConfig(next)?.radius ?? 26) * state.ballSizeMultiplier + 7;
+      const shadows = Array.from(this.afterimageGraphics.values());
+      for (let i = 0; i < shadows.length; i++) {
+        const shadow = shadows[i];
+        const track = this.afterimageSystem?.getTrack(shadow.trackId);
+        if (track?.ballLevel !== next || !shadow.marker) continue;
+        this.matchRings?.lineStyle(3, 0xd89458, 0.8).strokeCircle(shadow.marker.x, shadow.marker.y, 34);
+      }
       for (let i = 0, length = this.balls.length; i < length; i++) {
         const ball = this.balls[i];
         if (ball.level !== next) continue;
@@ -690,13 +771,13 @@ export class MainScene extends Phaser.Scene {
     
     const current = this.gameController.getGameState();
     const status = this.gameController.checkLevelComplete();
-    if (status === 'win') {
+    if (status === 'win' && (!this.afterimageMode || this.afterimageMergeCount >= (this.gameController.getLevelConfig().requiredAfterimageMerges ?? 1))) {
       this.resolving = true;
       this.canShoot = false;
       this.isAiming = false;
       this.aimLine?.setVisible(false);
       this.aimArrow?.setVisible(false);
-      this.uiTexts.hint?.setText('情绪释放成功！领取一份小福利');
+      this.uiTexts.hint?.setText('过关了！挑选下一关的战术');
       this.showVictory();
       
       // 开发模式下可禁用自动转场
@@ -723,7 +804,7 @@ export class MainScene extends Phaser.Scene {
     const hint = this.shakesRemaining > 0 ? '最后一球结算中 · 还能用聚拢救场' : '最后一球结算中…';
     this.uiTexts.hint?.setText(hint);
     const moving = this.balls.some(ball => !ball.body.isSleeping && Math.hypot(ball.body.velocity.x, ball.body.velocity.y) > 0.3);
-    if (moving || time - this.shotStartedAt < 1000) {
+    if (moving || time - this.shotStartedAt < (this.afterimageMode ? 1900 : 1000)) {
       this.settledSince = null;
       return;
     }
@@ -735,132 +816,123 @@ export class MainScene extends Phaser.Scene {
     this.scene.start('GameOverScene', { gameController: this.gameController, gameConfig: this.gameConfig, won: false, afterimageMode: this.afterimageMode });
   }
 
+  // 只有发射的团子留影，顶部发射区和底部收纳区保持畅通。
   private trackBallMovement(ball: Ball) {
-    if (!this.afterimageMode || !this.afterimageSystem) return;
-    
-    if (ball.trackId === undefined) {
-      ball.trackId = this.afterimageSystem.startTracking(ball.level);
-    }
-    
+    if (!this.afterimageSystem || ball.trackId === undefined) return;
+    if (ball.sprite.y < 520 || ball.sprite.y > 1000) return;
     this.afterimageSystem.addSegment(ball.trackId, ball.sprite.x, ball.sprite.y, this.time.now);
+    if (!this.afterimageGraphics.has(ball.trackId)) {
+      this.afterimageGraphics.set(ball.trackId, { trackId: ball.trackId, bodies: [], graphics: this.add.graphics().setDepth(3) });
+    }
   }
 
   private finalizeBallTrack(ball: Ball) {
-    if (!this.afterimageMode || !this.afterimageSystem || ball.trackId === undefined) return;
-    
-    const success = this.afterimageSystem.finalizeTrack(ball.trackId);
-    if (success) {
-      this.createAfterimagePhysics(ball.trackId);
-    }
+    if (!this.afterimageSystem || ball.trackId === undefined) return;
+    if (this.afterimageSystem.finalizeTrack(ball.trackId)) this.createAfterimagePhysics(ball.trackId);
     ball.trackId = undefined;
   }
 
   private createAfterimagePhysics(trackId: number) {
-    if (!this.afterimageSystem || !this.afterimageConfig) return;
-    
-    const track = this.afterimageSystem.getTrack(trackId);
-    if (!track || track.segments.length < 2) return;
-
+    const track = this.afterimageSystem?.getTrack(trackId);
+    if (!track || !this.afterimageConfig || track.segments.length === 0) return;
+    this.removeAfterimagePhysics(trackId);
     const graphics = this.add.graphics().setDepth(3);
     const bodies: MatterJS.BodyType[] = [];
-    const ballConfig = this.gameController.getBallConfig(track.ballLevel);
-    if (!ballConfig) return;
-
+    const options = { isStatic: true, restitution: 0.6, label: `afterimage_${trackId}`, collisionFilter: { group: -trackId } };
     for (let i = 0; i < track.segments.length - 1; i++) {
-      const seg1 = track.segments[i];
-      const seg2 = track.segments[i + 1];
-      const dx = seg2.x - seg1.x;
-      const dy = seg2.y - seg1.y;
-      const length = Math.sqrt(dx * dx + dy * dy);
-      const angle = Math.atan2(dy, dx);
-      const midX = (seg1.x + seg2.x) / 2;
-      const midY = (seg1.y + seg2.y) / 2;
-
-      const body = this.matter.add.rectangle(midX, midY, length, this.afterimageConfig.segmentThickness, {
-        isStatic: true,
-        angle,
-        restitution: 0.6,
-        label: `afterimage_${trackId}`
-      });
-      bodies.push(body);
+      const a = track.segments[i];
+      const b = track.segments[i + 1];
+      bodies.push(this.matter.add.rectangle((a.x + b.x) / 2, (a.y + b.y) / 2,
+        Math.hypot(b.x - a.x, b.y - a.y), this.afterimageConfig.segmentThickness,
+        { ...options, angle: Math.atan2(b.y - a.y, b.x - a.x) }));
     }
-
-    this.afterimageGraphics.set(trackId, { trackId, bodies, graphics });
+    const anchor = track.segments[Math.floor(track.segments.length / 2)];
+    const diameter = track.segments.length === 1 ? 48 : 30;
+    if (track.segments.length === 1) bodies.push(this.matter.add.circle(anchor.x, anchor.y, 18, options));
+    const marker = this.add.image(anchor.x, anchor.y, 'characters', `ball_${track.ballLevel}`).setDisplaySize(diameter, diameter).setDepth(4);
+    this.afterimageGraphics.set(trackId, { trackId, bodies, graphics, marker });
     this.renderAfterimage(trackId);
   }
 
   private renderAfterimage(trackId: number) {
-    if (!this.afterimageSystem || !this.afterimageConfig) return;
-    
     const physics = this.afterimageGraphics.get(trackId);
-    const track = this.afterimageSystem.getTrack(trackId);
-    if (!physics || !track) return;
-
-    const ballConfig = this.gameController.getBallConfig(track.ballLevel);
-    if (!ballConfig) return;
-
-    physics.graphics.clear();
-    physics.graphics.lineStyle(this.afterimageConfig.segmentThickness, ballConfig.color, track.opacity);
-
+    const track = this.afterimageSystem?.getTrack(trackId);
+    if (!physics || !track || !this.afterimageConfig) return;
+    const color = this.gameController.getBallConfig(track.ballLevel)?.color ?? 0xee976e;
+    const width = track.finalized ? this.afterimageConfig.segmentThickness : 3;
+    physics.graphics.clear().lineStyle(width, color, track.opacity);
     for (let i = 0; i < track.segments.length - 1; i++) {
-      const seg1 = track.segments[i];
-      const seg2 = track.segments[i + 1];
-      physics.graphics.lineBetween(seg1.x, seg1.y, seg2.x, seg2.y);
+      const a = track.segments[i];
+      const b = track.segments[i + 1];
+      physics.graphics.lineBetween(a.x, a.y, b.x, b.y);
+    }
+    if (physics.marker) {
+      physics.marker.setAlpha(Math.min(1, track.opacity + 0.3));
+      physics.graphics.lineStyle(2, color, track.opacity).strokeCircle(physics.marker.x, physics.marker.y, 25);
     }
   }
 
   private removeAfterimagePhysics(trackId: number) {
     const physics = this.afterimageGraphics.get(trackId);
     if (!physics) return;
-
-    for (const body of physics.bodies) {
-      this.matter.world.remove(body);
-    }
+    for (let i = 0; i < physics.bodies.length; i++) this.matter.world.remove(physics.bodies[i]);
     physics.graphics.destroy();
+    physics.marker?.destroy();
     this.afterimageGraphics.delete(trackId);
   }
 
-  private handleAfterimageMerge(track1Id: number, track2Id: number, newLevel: number, x: number, y: number) {
-    this.removeAfterimagePhysics(track1Id);
-    this.removeAfterimagePhysics(track2Id);
-
+  private handleAfterimageMerge(track1Id: number, track2Id: number, newLevel: number, x: number, y: number, newTrackId: number) {
+    // 旧残影向交汇点收拢，新核心立即显示并能继续共鸣。
+    const ids = [track1Id, track2Id];
+    for (let i = 0; i < ids.length; i++) {
+      const marker = this.afterimageGraphics.get(ids[i])?.marker;
+      if (marker) {
+        const echo = this.add.image(marker.x, marker.y, 'characters', `ball_${newLevel - 1}`).setDisplaySize(36, 36).setDepth(8);
+        this.tweens.add({ targets: echo, x, y, alpha: 0, duration: 220, onComplete: () => echo.destroy() });
+      }
+      this.removeAfterimagePhysics(ids[i]);
+    }
+    this.createAfterimagePhysics(newTrackId);
+    this.afterimageMergeCount++;
     const result = this.gameController.processMerge(newLevel - 1, this.time.now);
+    const combo = this.gameController.getGameState().combo;
+    const charged = this.charge.add(combo);
+    let refunded = false;
+    if (charged) {
+      this.shakesRemaining++;
+      refunded = this.refundPlanSwap();
+    }
     this.showScorePopup(x, y, result.score, newLevel);
     this.createMergeEffect(x, y, this.gameController.getBallConfig(newLevel)?.color ?? 0xffffff);
-    this.platform.playSound(`merge_${newLevel}_1`);
-
-    this.time.delayedCall(100, () => {
-      const newTrackId = Array.from(this.afterimageSystem?.getTracks().keys() ?? [])
-        .find(id => id !== track1Id && id !== track2Id && !this.afterimageGraphics.has(id));
-      if (newTrackId !== undefined) {
-        this.createAfterimagePhysics(newTrackId);
-      }
-    });
+    this.cameras.main.shake(100, Math.min(0.007, 0.002 * combo));
+    this.platform.playSound(`merge_${newLevel}_${combo}`);
+    let feedback = `残影共鸣！${characterNames[newLevel]}留下来了`;
+    if (charged) feedback = '充能满了！清影抱团 +1';
+    if (refunded) feedback = '充能完成！抱团 +1 · 换球返还 +1';
+    this.uiTexts.hint?.setText(feedback);
+    this.settledSince = null;
+    this.updateUI();
   }
 
   private checkAfterimageGlobalMerges() {
     if (!this.afterimageSystem) return;
-
     const merges = this.afterimageSystem.checkMerges();
-    for (const merge of merges) {
+    for (let i = 0; i < merges.length; i++) {
+      const merge = merges[i];
       this.afterimageSystem.processMerge(merge.track1Id, merge.track2Id, merge.newLevel, merge.x, merge.y);
     }
   }
 
   private updateAfterimages() {
-    if (!this.afterimageMode || !this.afterimageSystem) return;
-
-    for (const ball of this.balls) {
-      const isMoving = !ball.body.isSleeping && Math.hypot(ball.body.velocity.x, ball.body.velocity.y) > 0.5;
-      if (isMoving) {
-        this.trackBallMovement(ball);
-      } else if (ball.trackId !== undefined) {
-        this.finalizeBallTrack(ball);
-      }
+    if (!this.afterimageSystem) return;
+    for (let i = 0; i < this.balls.length; i++) {
+      const ball = this.balls[i];
+      if (ball.trackId === undefined) continue;
+      this.trackBallMovement(ball);
+      const stopped = ball.body.isSleeping || Math.hypot(ball.body.velocity.x, ball.body.velocity.y) <= 0.5;
+      if (stopped || this.time.now - (ball.trackStartedAt ?? this.time.now) >= 1500) this.finalizeBallTrack(ball);
     }
-
-    for (const [trackId] of this.afterimageGraphics) {
-      this.renderAfterimage(trackId);
-    }
+    const ids = Array.from(this.afterimageGraphics.keys());
+    for (let i = 0; i < ids.length; i++) this.renderAfterimage(ids[i]);
   }
 }

@@ -94,12 +94,15 @@ describe('AfterimageSystem', () => {
       expect(system.getTracks().size).toBe(1);
     });
 
-    it('should increment shot count', () => {
+    it('should only count actual launches', () => {
       const trackId = system.startTracking(1);
       system.addSegment(trackId, 100, 200, 0);
       system.addSegment(trackId, 120, 200, 50);
       expect(system.getShotCount()).toBe(0);
       system.finalizeTrack(trackId);
+      expect(system.finalizeTrack(trackId)).toBe(false);
+      expect(system.getShotCount()).toBe(0);
+      system.advanceShot();
       expect(system.getShotCount()).toBe(1);
     });
   });
@@ -116,6 +119,7 @@ describe('AfterimageSystem', () => {
       system.addSegment(id2, 220, 300, 50);
       system.finalizeTrack(id2);
 
+      system.advanceShot();
       const track1 = system.getTrack(id1);
       expect(track1?.opacity).toBeLessThan(config.baseOpacity);
     });
@@ -123,6 +127,7 @@ describe('AfterimageSystem', () => {
     it('should remove tracks after fadeAfterShots', () => {
       const trackIds: number[] = [];
       for (let i = 0; i < 4; i++) {
+        system.advanceShot();
         const id = system.startTracking(1);
         system.addSegment(id, 100 + i * 50, 200, 0);
         system.addSegment(id, 120 + i * 50, 200, 50);
@@ -238,7 +243,7 @@ describe('AfterimageSystem', () => {
       const tracks = Array.from(system.getTracks().values());
       const newTrack = tracks.find(t => t.ballLevel === 3);
       expect(newTrack).toBeDefined();
-      expect(events.onMerge).toHaveBeenCalledWith(id1, id2, 3, 125, 200);
+      expect(events.onMerge).toHaveBeenCalledWith(id1, id2, 3, 125, 200, newTrack?.id);
     });
   });
 
@@ -255,4 +260,87 @@ describe('AfterimageSystem', () => {
       expect(system.getShotCount()).toBe(0);
     });
   });
+  function track(level: number, x = 100, finalized = true) {
+    const id = system.startTracking(level);
+    system.addSegment(id, x, 200, 0);
+    system.addSegment(id, x + 100, 200, 50);
+    if (finalized) system.finalizeTrack(id);
+    return id;
+  }
+
+  it('does not merge a path that is still being recorded', () => {
+    track(1);
+    track(1, 100, false);
+    expect(system.checkMerges()).toEqual([]);
+  });
+
+  it('consumes each track once and rejects stale merge requests', () => {
+    const a = track(1);
+    const b = track(1);
+    track(1);
+    expect(system.checkMerges()).toHaveLength(1);
+    system.processMerge(a, b, 2, 100, 200);
+    system.processMerge(a, b, 2, 100, 200);
+    expect(events.onMerge).toHaveBeenCalledTimes(1);
+    expect(system.getTracks().size).toBe(2);
+  });
+
+  it('merges crossing segments at their intersection', () => {
+    track(1);
+    const b = system.startTracking(1);
+    system.addSegment(b, 150, 0, 0);
+    system.addSegment(b, 150, 1000, 50);
+    system.finalizeTrack(b);
+    expect(system.checkMerges()[0]).toMatchObject({ x: 150, y: 200 });
+  });
+
+  it('keeps a fused core eligible for the next merge', () => {
+    const a = track(1);
+    const b = track(1);
+    const id = system.processMerge(a, b, 2, 100, 200)!;
+    expect(system.getTrack(id)).toMatchObject({ finalized: true, ballLevel: 2 });
+    expect(system.getTrack(id)?.segments).toHaveLength(1);
+    track(2);
+    expect(system.checkMerges()[0].newLevel).toBe(3);
+  });
+
+  it('rejects invalid levels and stops at the highest character', () => {
+    const a = track(10);
+    const b = track(10);
+    expect(system.checkMerges()).toEqual([]);
+    expect(system.processMerge(a, b, 11, 100, 200)).toBeUndefined();
+    expect(system.processMerge(a, b, 4, 100, 200)).toBeUndefined();
+    expect(events.onMerge).not.toHaveBeenCalled();
+  });
+
+  it('clears settled obstacles without cancelling the flying ball', () => {
+    const settled = track(1);
+    const active = track(1, 100, false);
+    system.clearSettledTracks();
+    expect(system.getTrack(settled)).toBeUndefined();
+    expect(system.getTrack(active)).toBeDefined();
+    expect(events.onFade).toHaveBeenCalledWith(settled);
+  });
+
+  it('bounds recording size even on a long bouncing path', () => {
+    config.maxSegments = 8;
+    const id = system.startTracking(1);
+    for (let i = 0; i < 200; i++) system.addSegment(id, i * 20, 200, i);
+    expect(system.getTrack(id)?.segments.length).toBeLessThanOrEqual(8);
+  });
+
+  it('chain rescue keeps fused cores and active recordings but clears ordinary solid paths', () => {
+    const a = track(1);
+    const b = track(1);
+    const core = system.processMerge(a, b, 2, 100, 200)!;
+    const path = track(3);
+    const active = track(4, 100, false);
+    system.clearSettledTracks(true);
+    expect(system.getTrack(core)).toBeDefined();
+    expect(system.getTrack(active)).toBeDefined();
+    expect(system.getTrack(path)).toBeUndefined();
+    system.clearSettledTracks();
+    expect(system.getTrack(core)).toBeUndefined();
+  });
+
 });

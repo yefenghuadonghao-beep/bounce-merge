@@ -13,6 +13,7 @@ import { computeFillLayout, computeRenderScale } from './core/renderScale';
 
 import ballLevels from './config/ballLevels.json';
 import levelConfigs from './config/levelConfig.json';
+import afterimageLevels from './config/afterimageLevels.json';
 import gameConfigData from './config/gameConfig.json';
 
 export interface BootOptions {
@@ -106,7 +107,8 @@ export async function boot(options: BootOptions): Promise<BootResult> {
     gameConfig,
     renderScale,
     startScene(key, advanceLevels = 0, afterimageMode = false) {
-      for (let i = 0; i < advanceLevels; i++) gameController.advanceLevel();
+      if (afterimageMode) gameController.startRun(afterimageLevels);
+      for (let i = 0; i < Math.min(advanceLevels, gameController.getLevelCount() - 1); i++) gameController.advanceLevel();
       game.scene.start(key, { ...sceneData, afterimageMode });
     }
   };

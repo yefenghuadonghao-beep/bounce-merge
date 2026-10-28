@@ -16,6 +16,7 @@ export interface BoardObstacle {
 }
 
 export interface LevelConfig {
+  requiredAfterimageMerges?: number;
   title?: string;
   hint?: string;
   obstacles?: BoardObstacle[];
@@ -31,6 +32,7 @@ export interface LevelConfig {
 }
 
 export interface Upgrade {
+  scope?: 'next_level';
   id: string;
   name: string;
   description: string;
@@ -39,6 +41,8 @@ export interface Upgrade {
 }
 
 export interface GameState {
+  activePlan?: Upgrade;
+  pendingPlan?: Upgrade;
   currentLevel: number;
   score: number;
   highestBallLevel: number;
@@ -97,6 +101,7 @@ export interface ScoringConfig {
 }
 
 export interface AfterimageTrack {
+  finalized: boolean;
   id: number;
   ballLevel: number;
   segments: AfterimageSegment[];
@@ -111,6 +116,7 @@ export interface AfterimageSegment {
 }
 
 export interface AfterimageConfig {
+  maxSegments?: number;
   enabled: boolean;
   maxTracks: number;
   fadeAfterShots: number;

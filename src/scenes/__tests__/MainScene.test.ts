@@ -5,10 +5,12 @@ import { setPlatform } from '../../platform';
 import { WebPlatform } from '../../platform/WebPlatform';
 import { MainScene } from '../MainScene';
 import { UpgradeScene } from '../UpgradeScene';
+import { battlePlanEffects, battlePlans } from '../../core/BattlePlan';
 import { ShotQueue } from '../../core/ShotQueue';
 import { GameController } from '../../core/GameController';
 import ballLevels from '../../config/ballLevels.json';
 import levelConfigs from '../../config/levelConfig.json';
+import shadowLevels from '../../config/afterimageLevels.json';
 import config from '../../config/gameConfig.json';
 
 vi.mock('phaser', () => ({ default: { Scene: class {}, Scenes: { Events: { SHUTDOWN: 'shutdown' } } } }));
@@ -29,6 +31,106 @@ describe('scene turn lifecycle', () => {
     scene['canShoot'] = false;
     scene['showVictory'] = vi.fn();
     scene.time = { delayedCall: vi.fn((_delay: number, callback: () => void) => callback()) } as unknown as Phaser.Time.Clock;
+  });
+
+  it('requires a shadow merge before completing the afterimage goal', () => {
+    scene.init({ gameController: controller, gameConfig: config, afterimageMode: true });
+    controller.processMerge(2, 1000);
+    scene.update(1100);
+    expect(scene.scene.start).not.toHaveBeenCalled();
+    scene['afterimageMergeCount'] = 1;
+    scene.update(1400);
+    expect(scene.scene.start).toHaveBeenCalledWith('UpgradeScene', expect.objectContaining({ afterimageMode: true }));
+  });
+
+  it('does not finish the final shadow round after only one resonance', () => {
+    controller.startRun(shadowLevels);
+    for (let i = 0; i < 3; i++) controller.advanceLevel();
+    scene.init({ gameController: controller, gameConfig: config, afterimageMode: true });
+    controller.processMerge(5, 1000);
+    scene['afterimageMergeCount'] = 3;
+    scene.update(1100);
+    expect(scene.scene.start).not.toHaveBeenCalled();
+    scene['afterimageMergeCount'] = 4;
+    scene.update(1400);
+    expect(scene.scene.start).toHaveBeenCalledWith('GameOverScene', expect.objectContaining({ won: true }));
+  });
+
+  it('does not create shadows for preset or merged balls', () => {
+    scene.init({ gameController: controller, gameConfig: config, afterimageMode: true });
+    scene['balls'] = [{ body: { velocity: { x: 4, y: 8 } } as MatterJS.BodyType, sprite: { x: 360, y: 700 } as Phaser.GameObjects.Image, level: 1 }];
+    scene['updateAfterimages']();
+    expect(scene['afterimageSystem']?.getTracks().size).toBe(0);
+  });
+
+  it('freezes pending merges after the result has been decided', () => {
+    scene['resolving'] = true;
+    scene['mergeBalls'] = vi.fn();
+    const first = { body: {} as MatterJS.BodyType, sprite: {} as Phaser.GameObjects.Arc, level: 1 };
+    const second = { ...first };
+    scene['balls'] = [first, second];
+    scene['pendingMerges'] = [[first, second]];
+    scene.update(2000);
+    expect(scene['mergeBalls']).not.toHaveBeenCalled();
+  });
+
+  it('applies the selected plan to tools and rotates three balls without spending a shot', () => {
+    controller.applyUpgrade(battlePlans()[1]);
+    controller.advanceLevel();
+    scene.init({ gameController: controller, gameConfig: config });
+    scene['shotQueue'] = new ShotQueue(1, 9, Math.random, [1, 2, 3, 1]);
+    scene['canShoot'] = true;
+    scene['updateUI'] = vi.fn();
+    const shots = controller.getGameState().shotsRemaining;
+    expect(scene['swapsRemaining']).toBe(levelConfigs[1].swaps + 2);
+    scene['swapBall']();
+    expect(scene['shotQueue'].peek()).toEqual([2, 3, 1]);
+    expect(scene['swapsRemaining']).toBe(levelConfigs[1].swaps + 1);
+    expect(controller.getGameState().shotsRemaining).toBe(shots);
+  });
+
+  it('applies late plan costs and restores the chosen plan on retry', () => {
+    for (let i = 0; i < 3; i++) controller.advanceLevel();
+    controller.applyUpgrade(battlePlans()[2]);
+    controller.advanceLevel();
+    scene.init({ gameController: controller, gameConfig: config });
+    expect(scene['shakesRemaining']).toBe(levelConfigs[4].shakes + 1);
+    expect(scene['swapsRemaining']).toBe(0);
+    expect(scene['charge'].threshold).toBe(3);
+    scene['shakesRemaining'] = 0;
+    controller.retryLevel();
+    scene.init({ gameController: controller, gameConfig: config });
+    expect(scene['shakesRemaining']).toBe(levelConfigs[4].shakes + 1);
+    expect(scene['charge'].threshold).toBe(3);
+  });
+
+  it('direct preview selection spends one swap and leaves shot count unchanged', () => {
+    controller.applyUpgrade(battlePlans()[1]);
+    controller.advanceLevel();
+    scene.init({ gameController: controller, gameConfig: config });
+    scene['shotQueue'] = new ShotQueue(1, 9, Math.random, [1, 2, 3, 4]);
+    scene['updateUI'] = vi.fn();
+    const shots = controller.getGameState().shotsRemaining;
+    scene['swapBall'](2);
+    expect(scene['shotQueue'].peek()).toEqual([3, 2, 1]);
+    expect(scene['swapsRemaining']).toBe(2);
+    expect(controller.getGameState().shotsRemaining).toBe(shots);
+  });
+
+  it('refunds the chain plan swap on its first charge reward only', () => {
+    for (let i = 0; i < 3; i++) controller.advanceLevel();
+    controller.applyUpgrade(battlePlans()[2]);
+    controller.advanceLevel();
+    scene.init({ gameController: controller, gameConfig: config });
+    for (let i = 0; i < 3; i++) scene['charge'].add(1);
+    expect(scene['refundPlanSwap']()).toBe(true);
+    expect(scene['swapsRemaining']).toBe(1);
+    for (let i = 0; i < 3; i++) scene['charge'].add(1);
+    expect(scene['refundPlanSwap']()).toBe(false);
+    expect(scene['swapsRemaining']).toBe(1);
+    controller.retryLevel();
+    scene.init({ gameController: controller, gameConfig: config });
+    expect(scene['swapsRemaining']).toBe(0);
   });
 
   it('unlocks after 450ms even while other fruit is moving', () => {
@@ -174,12 +276,13 @@ describe('scene turn lifecycle', () => {
     upgradeScene.input = { enabled: true } as Phaser.Input.InputPlugin;
     upgradeScene.cameras = { main: { fadeOut: vi.fn() } } as unknown as Phaser.Cameras.Scene2D.CameraManager;
     upgradeScene.time = { delayedCall: vi.fn() } as unknown as Phaser.Time.Clock;
-    const upgrade = { id: 'extra_shot', name: '', description: '', type: 'stat' as const, value: 1 };
+    const upgrade = battlePlans()[0];
     upgradeScene['selectUpgrade'](upgrade);
     upgradeScene['selectUpgrade'](upgrade);
     expect(controller.getGameState().currentLevel).toBe(2);
-    expect(controller.getGameState().shotsRemaining).toBe(levelConfigs[1].shots + 1);
-    expect(controller.getGameState().upgrades).toHaveLength(1);
+    expect(controller.getGameState().shotsRemaining).toBe(levelConfigs[1].shots + 2);
+    expect(controller.getGameState().upgrades).toHaveLength(0);
+    expect(controller.getGameState().activePlan?.id).toBe('plan_supply');
   });
 });
 
@@ -198,13 +301,16 @@ describe('chapter completion and safe upgrades', () => {
     scene.update(1200);
     expect(scene.scene.start).toHaveBeenCalledWith('GameOverScene', expect.objectContaining({ won: true }));
   });
-  it('does not offer changes to authored ball sizes or levels', () => {
+  it('always offers three different next-level tactics, including late in the run', () => {
     const controller = new GameController(ballLevels, levelConfigs, config);
-    const scene = new UpgradeScene();
-    scene.init({ gameController: controller, gameConfig: config });
-    const offered = scene['selectRandomUpgrades'](10).map(upgrade => upgrade.id);
-    expect(offered).not.toContain('bigger_balls');
-    expect(offered).not.toContain('starting_level_boost');
-    expect(offered.length).toBe(4);
+    for (let stage = 1; stage < 8; stage++) {
+      const offered = battlePlans();
+      expect(new Set(offered.map(card => card.id)).size).toBe(3);
+      expect(offered.every(card => card.scope === 'next_level')).toBe(true);
+      controller.applyUpgrade(offered[0]);
+      controller.advanceLevel();
+      expect(controller.getGameState().shotsRemaining).toBe(levelConfigs[stage].shots + battlePlanEffects(offered[0], levelConfigs[stage]).shots);
+      expect(controller.getGameState().upgrades).toHaveLength(0);
+    }
   });
 });

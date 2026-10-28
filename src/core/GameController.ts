@@ -17,6 +17,7 @@ export interface ScoreEvent {
 
 export class GameController {
   private summary = { merges: 0, bestCombo: 0, highest: 1 };
+  private levelCount = 0;
   private checkpoint = '';
   private checkpointSummary = { merges: 0, bestCombo: 0, highest: 1 };
   private gameState: GameStateManager;
@@ -29,10 +30,19 @@ export class GameController {
     gameConfig: GameConfig
   ) {
     this.gameState = new GameStateManager(levelConfigs);
+    this.levelCount = levelConfigs.length;
     this.mergeSystem = new MergeSystem(ballLevels);
     this.gameConfig = gameConfig;
     this.checkpoint = this.gameState.serialize();
   }
+
+  startRun(levelConfigs: LevelConfig[]) {
+    this.gameState = new GameStateManager(levelConfigs);
+    this.levelCount = levelConfigs.length;
+    this.reset();
+  }
+
+  getLevelCount() { return this.levelCount; }
 
   getGameState() {
     return this.gameState.getState();
@@ -40,6 +50,10 @@ export class GameController {
 
   getLevelConfig() {
     return this.gameState.getLevelConfig();
+  }
+
+  getNextLevelConfig() {
+    return this.gameState.getLevelConfig(this.gameState.getState().currentLevel + 1);
   }
 
   getBallConfig(level: number) {
