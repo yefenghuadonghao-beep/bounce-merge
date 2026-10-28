@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GameController } from '../core/GameController';
 import { GameConfig } from '../types';
+import type { StageReward } from '../core/JourneyProgress';
 import { getPlatform } from '../platform';
 import { button, ink, panel, paper, FONT_FAMILY } from '../ui/theme';
 import { resultCopy } from '../ui/resultCopy';
@@ -15,18 +16,20 @@ export class GameOverScene extends Phaser.Scene {
   private restarting = false;
   private won = false;
   private afterimageMerges?: number;
+  private reward?: StageReward;
 
   constructor() {
     super({ key: 'GameOverScene' });
   }
 
-  init(data: { gameController: GameController; gameConfig: GameConfig; won?: boolean; afterimageMode?: boolean; afterimageMerges?: number }) {
+  init(data: { gameController: GameController; gameConfig: GameConfig; won?: boolean; afterimageMode?: boolean; afterimageMerges?: number; reward?: StageReward }) {
     this.gameController = data.gameController;
     this.gameConfig = data.gameConfig;
     this.afterimageMode = data.afterimageMode ?? false;
     this.restarting = false;
     this.won = data.won ?? false;
     this.afterimageMerges = data.afterimageMerges;
+    this.reward = data.reward;
   }
 
   preload() { loadOfficeArt(this); }
@@ -72,7 +75,13 @@ export class GameOverScene extends Phaser.Scene {
     }
     this.add.text(360, 756, `本轮累计 ${state.score} 快乐值 · ${summary.merges} 次合成`, { fontFamily: FONT_FAMILY, fontSize: '21px', color: '#8b7c64' }).setOrigin(0.5);
     const record = this.add.text(360, 790, '', { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#8b7c64' }).setOrigin(0.5);
-    this.add.text(360, 868, copy.advice, { fontFamily: FONT_FAMILY, fontSize: '23px', color: ink, align: 'center', wordWrap: { width: 510 }, lineSpacing: 10 }).setOrigin(0.5);
+    let advice = copy.advice;
+    if (this.won && this.reward) {
+      const names = { document: '文件', coffee: '咖啡', package: '快递', keyboard: '键盘', mouse: '鼠标', plant: '绿植' };
+      const item = this.reward.items[0];
+      advice = `本关奖励：${item.level}级${names[item.type]} ×${this.reward.items.length} · +${this.reward.coins}币\n物品已寄存，去工位合出下一位搭子`;
+    }
+    this.add.text(360, 868, advice, { fontFamily: FONT_FAMILY, fontSize: '23px', color: ink, align: 'center', wordWrap: { width: 510 }, lineSpacing: 10 }).setOrigin(0.5);
     const report = this.add.container(0, 20, this.children.list.slice(start)).setAlpha(0);
     this.tweens.add({ targets: report, y: 0, alpha: 1, duration: 400, ease: 'Cubic.easeOut' });
     this.tweens.add({ targets: hero, y: hero.y - 7, angle: 3, duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
@@ -89,7 +98,7 @@ export class GameOverScene extends Phaser.Scene {
       if (this.restarting) return;
       this.restarting = true;
       if (this.won) {
-        this.scene.start('WorkstationScene', { gameController: this.gameController, gameConfig: this.gameConfig });
+        this.scene.start('WorkstationScene', { gameController: this.gameController, gameConfig: this.gameConfig, afterimageMode: this.afterimageMode });
         return;
       }
       this.gameController.retryLevel();
@@ -99,7 +108,7 @@ export class GameOverScene extends Phaser.Scene {
       if (this.won) { this.restart(); return; }
       if (this.restarting) return;
       this.restarting = true;
-      this.scene.start('WorkstationScene', { gameController: this.gameController, gameConfig: this.gameConfig });
+      this.scene.start('WorkstationScene', { gameController: this.gameController, gameConfig: this.gameConfig, afterimageMode: this.afterimageMode });
     });
     button(this, 515, 1120, 280, '返回首页', () => {
       if (this.restarting) return;
@@ -114,11 +123,15 @@ export class GameOverScene extends Phaser.Scene {
     const platform = getPlatform();
     const state = this.gameController.getGameState();
     const recordKey = this.afterimageMode ? 'afterimage_best_score' : 'best_score';
-    const stored = Number(await platform.loadData(recordKey));
-    const previous = Number.isFinite(stored) ? Math.max(0, stored) : 0;
-    const best = Math.max(previous, state.score);
-    await platform.saveData(recordKey, String(best));
-    if (label.active) label.setText(state.score > previous ? `新纪录！个人最佳 ${best}` : `个人最佳 ${best}`);
+    try {
+      const stored = Number(await platform.loadData(recordKey));
+      const previous = Number.isFinite(stored) ? Math.max(0, stored) : 0;
+      const best = Math.max(previous, state.score);
+      await platform.saveData(recordKey, String(best));
+      if (label.active) label.setText(state.score > previous ? `新纪录！个人最佳 ${best}` : `个人最佳 ${best}`);
+    } catch {
+      if (label.active) label.setText('个人纪录暂未保存');
+    }
   }
 
   private restart() {

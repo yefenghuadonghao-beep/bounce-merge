@@ -18,6 +18,20 @@ vi.mock('phaser', () => ({ default: { Scene: class {}, Scenes: { Events: { SHUTD
 // 场景通过 getPlatform() 取存档/音效，入口外需显式注册。
 beforeEach(() => setPlatform(new WebPlatform()));
 
+// 胜利后等待玩家看完已保存的回执，再由按钮进入下一场景。
+function continueAfterReward(scene: MainScene, controller: GameController) {
+  scene['rewardReceipt'] = {
+    id: controller.getCompletionId(),
+    mode: scene['afterimageMode'] ? 'afterimage' : 'classic',
+    level: controller.getGameState().currentLevel,
+    firstClear: true,
+    coins: 35,
+    items: [{ type: 'document', level: 3 }],
+    newBest: true
+  };
+  scene['continueVictory']();
+}
+
 describe('scene turn lifecycle', () => {
   let scene: MainScene;
   let controller: GameController;
@@ -40,6 +54,9 @@ describe('scene turn lifecycle', () => {
     expect(scene.scene.start).not.toHaveBeenCalled();
     scene['afterimageMergeCount'] = 1;
     scene.update(1400);
+    expect(scene['showVictory']).toHaveBeenCalledOnce();
+    expect(scene.scene.start).not.toHaveBeenCalled();
+    continueAfterReward(scene, controller);
     expect(scene.scene.start).toHaveBeenCalledWith('UpgradeScene', expect.objectContaining({ afterimageMode: true }));
   });
 
@@ -53,6 +70,9 @@ describe('scene turn lifecycle', () => {
     expect(scene.scene.start).not.toHaveBeenCalled();
     scene['afterimageMergeCount'] = 4;
     scene.update(1400);
+    expect(scene['showVictory']).toHaveBeenCalledOnce();
+    expect(scene.scene.start).not.toHaveBeenCalled();
+    continueAfterReward(scene, controller);
     expect(scene.scene.start).toHaveBeenCalledWith('GameOverScene', expect.objectContaining({ won: true }));
   });
 
@@ -170,6 +190,9 @@ describe('scene turn lifecycle', () => {
     controller.processMerge(2, 1000);
     scene.update(1100);
     scene.update(1600);
+    expect(scene['showVictory']).toHaveBeenCalledOnce();
+    expect(scene.scene.start).not.toHaveBeenCalled();
+    continueAfterReward(scene, controller);
     expect(scene.scene.start).toHaveBeenCalledWith('UpgradeScene', expect.any(Object));
   });
 
@@ -365,6 +388,9 @@ describe('chapter completion and safe upgrades', () => {
     scene.scene = { start: vi.fn() } as unknown as Phaser.Scenes.ScenePlugin;
     scene.time = { delayedCall: vi.fn((_delay: number, callback: () => void) => callback()) } as unknown as Phaser.Time.Clock;
     scene.update(1200);
+    expect(scene['showVictory']).toHaveBeenCalledOnce();
+    expect(scene.scene.start).not.toHaveBeenCalled();
+    continueAfterReward(scene, controller);
     expect(scene.scene.start).toHaveBeenCalledWith('GameOverScene', expect.objectContaining({ won: true }));
   });
   it('always offers three different next-level tactics, including late in the run', () => {

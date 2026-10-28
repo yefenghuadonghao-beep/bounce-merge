@@ -63,10 +63,15 @@ export class UpgradeScene extends Phaser.Scene {
     const plans = battlePlans();
     for (let i = 0; i < plans.length; i++) this.createUpgradeButton(plans[i], i, next);
     this.feedback = this.add.text(360, 1116, '三选一 · 仅下一关生效 · 重试保留', { fontFamily: FONT_FAMILY, fontSize: '21px', color: '#8b6041' }).setOrigin(0.5);
-    button(this, 360, 1212, 280, '返回首页', () => {
+    button(this, 205, 1212, 280, '返回首页', () => {
       if (this.selecting) return;
       this.selecting = true;
       this.scene.start('HomeScene', { gameController: this.gameController, gameConfig: this.gameConfig });
+    });
+    button(this, 515, 1212, 280, '去工位拆快递', () => {
+      if (this.selecting || this.mapOverlay) return;
+      this.selecting = true;
+      this.scene.start('WorkstationScene', { gameController: this.gameController, gameConfig: this.gameConfig, afterimageMode: this.afterimageMode, returnTo: 'UpgradeScene' });
     });
   }
 

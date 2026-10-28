@@ -51,6 +51,7 @@ describe('workstation input lifecycle', () => {
     scene['createTutorial'] = vi.fn();
     scene['createDesks'] = vi.fn();
     scene['createInbox'] = vi.fn();
+    scene['createRewards'] = vi.fn();
     scene['createButtons'] = vi.fn();
     scene['updateUI'] = vi.fn();
     scene['showMergeAnimation'] = vi.fn();
@@ -115,6 +116,111 @@ describe('workstation input lifecycle', () => {
     expect(scene['deskGraphics'].size).toBe(0);
     expect(scene['dragPreview']).toBeNull();
     expect(scene['bossInspectionUI']).toBeUndefined();
+  });
+
+  it('claims once during repeated clicks and opens the page containing new rewards', async () => {
+    const system = scene['system'];
+    for (let i = 0; i < 5; i++) system.addItemToInbox('document', 1);
+    await scene['manager'].completeStage({ id: 'first', mode: 'classic', level: 1, score: 25, bestCombo: 1, shotsUsed: 1 });
+    const claim = vi.spyOn(scene['manager'], 'claimStageRewards');
+    const first = scene['claimRewards']();
+    await scene['claimRewards']();
+    await first;
+    expect(claim).toHaveBeenCalledOnce();
+    expect(scene['system'].getState().inbox).toHaveLength(10);
+    expect(scene['inboxPage']).toBe(1);
+    expect(scene['rewardMessage']).toContain('收下 2 件');
+    expect(scene['claiming']).toBe(false);
+  });
+
+  it('retains pending rewards when the inbox is full and explains how to free space', async () => {
+    const system = scene['system'];
+    while (system.addItemToInbox('document', 1)) { /* 填满收件箱。 */ }
+    await scene['manager'].completeStage({ id: 'full', mode: 'classic', level: 1, score: 25, bestCombo: 1, shotsUsed: 1 });
+    await scene['claimRewards']();
+    expect(system.getState().inbox).toHaveLength(20);
+    expect(system.getState().journey?.pendingRewards[0].items).toHaveLength(2);
+    expect(scene['rewardMessage']).toContain('余 2 件已保留');
+  });
+
+  it('does not update a later scene after an outstanding claim resolves', async () => {
+    await scene['manager'].completeStage({ id: 'leave', mode: 'classic', level: 1, score: 25, bestCombo: 1, shotsUsed: 1 });
+    let resolveClaim!: (result: { claimed: number; remaining: number }) => void;
+    vi.spyOn(scene['manager'], 'claimStageRewards').mockReturnValue(new Promise(resolve => { resolveClaim = resolve; }));
+    const pending = scene['claimRewards']();
+    events.emit('shutdown');
+    scene.init({ gameController: controller, gameConfig });
+    resolveClaim({ claimed: 2, remaining: 0 });
+    await pending;
+    expect(scene['updateUI']).not.toHaveBeenCalled();
+    expect(scene['rewardMessage']).toBe('');
+    expect(scene['claiming']).toBe(false);
+  });
+
+  it('blocks asset changes and timed updates while a claim can still roll back', () => {
+    dragInboxItem();
+    const system = scene['system'];
+    const snapshot = system.serialize();
+    const collect = vi.spyOn(system, 'collectCoins');
+    const unlock = vi.spyOn(system, 'unlockDesk');
+    const update = vi.spyOn(system, 'update');
+    scene['claiming'] = true;
+    scene['handleDrop'](0);
+    scene['collectFromDesk'](0);
+    scene['unlockNextDesk']();
+    scene['updateProduction']();
+    expect(system.serialize()).toBe(snapshot);
+    expect(collect).not.toHaveBeenCalled();
+    expect(unlock).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('bounds inbox pages and cancels dragging before changing pages', () => {
+    const system = scene['system'];
+    for (let i = 0; i < 10; i++) system.addItemToInbox('document', 1);
+    const render = vi.fn();
+    scene['renderInbox'] = render;
+    const preview = dragInboxItem();
+    scene['changeInboxPage'](1);
+    expect(scene['inboxPage']).toBe(1);
+    expect(preview.destroy).toHaveBeenCalledOnce();
+    scene['changeInboxPage'](8);
+    expect(scene['inboxPage']).toBe(2);
+    scene['changeInboxPage'](-8);
+    expect(scene['inboxPage']).toBe(0);
+    expect(render).toHaveBeenCalledTimes(3);
+  });
+
+  it('returns to the pending tactical choice without resetting the controller', async () => {
+    controller.advanceLevel();
+    const state = controller.getGameState();
+    scene['returnTo'] = 'UpgradeScene';
+    scene['afterimageMode'] = true;
+    scene.scene = { start: vi.fn() } as unknown as Phaser.Scenes.ScenePlugin;
+    await scene['leaveWorkstation']();
+    await scene['leaveWorkstation']();
+    expect(scene.scene.start).toHaveBeenCalledOnce();
+    expect(scene.scene.start).toHaveBeenCalledWith('UpgradeScene', { gameController: controller, gameConfig, afterimageMode: true });
+    expect(controller.getGameState()).toEqual(state);
+  });
+
+  it('keeps the player in the workstation when saving before departure fails', async () => {
+    vi.spyOn(scene['manager'], 'save').mockRejectedValue(new Error('storage unavailable'));
+    scene.scene = { start: vi.fn() } as unknown as Phaser.Scenes.ScenePlugin;
+    await scene['leaveWorkstation']();
+    expect(scene.scene.start).not.toHaveBeenCalled();
+    expect(scene['saveFailed']).toBe(true);
+    expect(scene['leaving']).toBe(false);
+  });
+
+  it('shows a recoverable load failure instead of drawing an empty new workstation', async () => {
+    scene.init({ gameController: controller, gameConfig });
+    vi.spyOn(scene['manager'], 'getSystem').mockRejectedValue(new Error('storage unavailable'));
+    const failure = vi.fn();
+    scene['showLoadFailure'] = failure;
+    await scene.create();
+    expect(failure).toHaveBeenCalledOnce();
+    expect(scene['loaded']).toBe(false);
   });
 
   it('passes the game context into the workstation', () => {

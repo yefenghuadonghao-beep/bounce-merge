@@ -253,3 +253,42 @@ describe('level retry checkpoint', () => {
     expect(controller.getLevelSummary().score).toBe(0);
   });
 });
+
+
+describe('stage completion identity and shot records', () => {
+  it('keeps one receipt id for an attempt and creates a new id for retry, next stage and new run', () => {
+    const controller = new GameController(mockBallLevels, mockLevelConfigs, mockGameConfig);
+    const first = controller.getCompletionId();
+    controller.useShot();
+    controller.processMerge(1, 100);
+    expect(controller.getCompletionId()).toBe(first);
+    controller.retryLevel();
+    const retried = controller.getCompletionId();
+    expect(retried).not.toBe(first);
+    expect(controller.getCompletionId()).toBe(retried);
+    controller.advanceLevel();
+    const next = controller.getCompletionId();
+    expect(next).not.toBe(retried);
+    controller.reset();
+    expect(controller.getCompletionId()).not.toBe(next);
+  });
+
+  it('counts only actual launches including extra ammunition, not merges or empty shots', () => {
+    const controller = new GameController(mockBallLevels, mockLevelConfigs, mockGameConfig);
+    controller.applyUpgrade({ id: 'extra_shot', name: '', description: '', type: 'stat', value: 2 });
+    controller.processMerge(1, 100);
+    expect(controller.getLevelShotsUsed()).toBe(0);
+    for (let i = 0; i < 20; i++) controller.useShot();
+    expect(controller.getLevelShotsUsed()).toBe(17);
+    expect(controller.getGameState().shotsRemaining).toBe(0);
+    controller.retryLevel();
+    expect(controller.getLevelShotsUsed()).toBe(0);
+    controller.useShot();
+    expect(controller.getLevelShotsUsed()).toBe(1);
+    controller.advanceLevel();
+    expect(controller.getLevelShotsUsed()).toBe(0);
+    controller.useShot();
+    controller.startRun(mockLevelConfigs);
+    expect(controller.getLevelShotsUsed()).toBe(0);
+  });
+});

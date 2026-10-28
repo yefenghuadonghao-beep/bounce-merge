@@ -8,11 +8,11 @@ import { AfterimageSystem } from '../core/AfterimageSystem';
 import afterimageConfigData from '../config/afterimageConfig.json';
 import { button, characterNames, ink, panel, paper, FONT_FAMILY } from '../ui/theme';
 import { mergeBurst, paperConfetti } from '../ui/officeEffects';
-import { loadOfficeArt, officeProp, officeObstacle } from '../ui/officeArt';
+import { loadOfficeArt, officeProp, officeObstacle, itemFrames } from '../ui/officeArt';
 import { setupHiDpi } from '../ui/hidpi';
 import { getPlatform } from '../platform';
 import { WorkstationManager } from '../core/WorkstationManager';
-import type { ItemType } from '../types/workstation';
+import type { StageReward } from '../core/JourneyProgress';
 
 interface Ball {
   body: MatterJS.BodyType;
@@ -61,7 +61,6 @@ export class MainScene extends Phaser.Scene {
   private scorePopups: Phaser.GameObjects.Text[] = [];
   private comboText!: Phaser.GameObjects.Text;
   private afterimageMode: boolean = false;
-  private noAutoTransition: boolean = false;
   private noWinCheck: boolean = false;
   private afterimageSystem?: AfterimageSystem;
   private afterimageConfig?: AfterimageConfig;
@@ -83,13 +82,18 @@ export class MainScene extends Phaser.Scene {
     this.gameConfig = data.gameConfig;
     this.afterimageMode = data.afterimageMode ?? false;
     this.balls = [];
+    this.victoryVersion++;
+    this.rewardReceipt = undefined;
+    this.rewardSaving = false;
+    this.victoryLeaving = false;
+    this.rewardView = undefined;
+    this.victoryOverlay = undefined;
     this.charge = new MergeCharge();
     
     // 开发模式：禁用自动转场或完全禁用胜利检测
     if (import.meta.env.DEV) {
       const urlParams = new URLSearchParams(window.location.search);
       const debug = urlParams.get('debug') || '';
-      this.noAutoTransition = debug.includes('noauto');
       this.noWinCheck = debug.includes('nowin');
     }
     this.isAiming = false;
@@ -592,6 +596,7 @@ export class MainScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       // Matter 插件先清空 world 引用，清理时使用本次场景捕获的实例。
       world.off('collisionstart', onCollision);
+      this.victoryVersion++;
     });
   }
 
@@ -694,71 +699,103 @@ export class MainScene extends Phaser.Scene {
   }
 
   private victoryOverlay?: Phaser.GameObjects.Container;
-  
-  private async awardWorkstationItems() {
+  private rewardView?: Phaser.GameObjects.Container;
+  private rewardReceipt?: StageReward;
+  private rewardSaving = false;
+  private victoryLeaving = false;
+  private victoryVersion = 0;
+
+  private showVictory() {
+    if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('debug')?.includes('nooverlay')) return;
+    this.victoryOverlay?.destroy(true);
+    const start = this.children.length;
+    const stage = this.gameController.getLevelConfig();
+    const summary = this.gameController.getLevelSummary();
+    const target = stage.targetBallLevel ?? summary.highest;
+    this.add.rectangle(360, 640, 720, 1280, 0x49392d, 0.55).setInteractive();
+    panel(this, 50, 155, 620, 1000);
+    this.add.text(360, 220, '坏情绪，碰掉了！', { fontFamily: FONT_FAMILY, fontSize: '38px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
+    const hero = this.add.image(360, 350, 'characters', `ball_${target}`).setDisplaySize(140, 140);
+    const stamp = this.add.text(535, 365, '准点\n下班', { fontFamily: FONT_FAMILY, fontSize: '25px', color: '#af6549', backgroundColor: '#fff3db', padding: { x: 12, y: 8 } }).setOrigin(0.5).setAngle(-12);
+    this.add.text(360, 465, `本关 ${summary.score} 快乐值 · ${this.gameController.getLevelShotsUsed()} 发完成`, { fontFamily: FONT_FAMILY, fontSize: '25px', color: ink }).setOrigin(0.5);
+    const root = this.add.container(0, 0, this.children.list.slice(start)).setDepth(30);
+    this.victoryOverlay = root;
+    hero.setDisplaySize(70, 70);
+    this.tweens.add({ targets: hero, displayWidth: 140, displayHeight: 140, duration: 450, ease: 'Back.Out' });
+    stamp.setScale(2).setAlpha(0);
+    this.tweens.add({ targets: stamp, scaleX: 1, scaleY: 1, alpha: 1, delay: 350, duration: 230, ease: 'Cubic.easeIn' });
+    paperConfetti(this, root);
+    void this.saveVictoryReward();
+  }
+
+  private async saveVictoryReward() {
+    if (this.rewardSaving || this.rewardReceipt) return;
+    this.rewardSaving = true;
+    const version = this.victoryVersion;
+    this.renderVictoryReward('正在装好通关快递…');
+    const stage = this.gameController.getLevelConfig();
+    const summary = this.gameController.getLevelSummary();
     try {
-      const manager = WorkstationManager.getInstance(this.platform);
-      const current = this.gameController.getGameState();
-      const level = this.gameController.getLevelConfig();
-      
-      // Calculate performance: better scores = more/better items
-      const scoreRatio = current.score / (level.targetScore || 100);
-      const itemCount = scoreRatio >= 1.5 ? 3 : scoreRatio >= 1.0 ? 2 : 1;
-      
-      const itemTypes: ItemType[] = ['document', 'coffee', 'package', 'keyboard', 'mouse', 'plant'];
-      const items: { type: ItemType; level: number }[] = [];
-      
-      for (let i = 0; i < itemCount; i++) {
-        const type = itemTypes[Math.floor(Math.random() * itemTypes.length)];
-        const level = Math.floor(Math.random() * 3) + 1; // Lv 1-3
-        items.push({ type, level });
-      }
-      
-      await manager.addRewardItems(items);
-    } catch (e) {
-      console.warn('Failed to award workstation items:', e);
+      const receipt = await WorkstationManager.getInstance(this.platform).completeStage({
+        id: this.gameController.getCompletionId(),
+        mode: this.afterimageMode ? 'afterimage' : 'classic',
+        level: stage.level,
+        score: summary.score,
+        bestCombo: summary.bestCombo,
+        shotsUsed: this.gameController.getLevelShotsUsed()
+      });
+      if (version !== this.victoryVersion) return;
+      this.rewardReceipt = receipt;
+      this.renderVictoryReward();
+    } catch {
+      if (version !== this.victoryVersion) return;
+      this.renderVictoryReward('奖励还没保存好，点一下重试', true);
+    } finally {
+      if (version === this.victoryVersion) this.rewardSaving = false;
     }
   }
 
-  private showVictory() {
-    // 开发模式下可完全禁用胜利overlay
-    if (import.meta.env.DEV) {
-      const debug = new URLSearchParams(window.location.search).get('debug');
-      if (debug?.includes('nooverlay')) {
-        return;
+  private renderVictoryReward(status?: string, retry = false) {
+    this.rewardView?.destroy(true);
+    const start = this.children.length;
+    const receipt = this.rewardReceipt;
+    if (status) {
+      this.add.text(360, 675, status, { fontFamily: FONT_FAMILY, fontSize: '25px', color: ink }).setOrigin(0.5);
+      if (retry) button(this, 360, 920, 530, '重新保存奖励', () => { void this.saveVictoryReward(); });
+    } else if (receipt) {
+      panel(this, 85, 520, 550, 295, 0xeaf0df);
+      const title = receipt.firstClear ? '首通礼包 · 一对同款搭子' : '再次通关 · 补一份成长材料';
+      this.add.text(360, 555, title, { fontFamily: FONT_FAMILY, fontSize: '25px', color: '#547044', fontStyle: 'bold' }).setOrigin(0.5);
+      officeProp(this, 268, 615, 7, 46);
+      this.add.text(392, 615, `+${receipt.coins} 币已到账`, { fontFamily: FONT_FAMILY, fontSize: '25px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
+      const names = { document: '文件', coffee: '咖啡', package: '快递', keyboard: '键盘', mouse: '鼠标', plant: '绿植' };
+      for (let i = 0; i < receipt.items.length; i++) {
+        const item = receipt.items[i];
+        const x = 360 + (i - (receipt.items.length - 1) / 2) * 180;
+        const image = officeProp(this, x, 696, itemFrames[item.type], 78);
+        this.add.text(x, 759, `${item.level}级${names[item.type]}`, { fontFamily: FONT_FAMILY, fontSize: '22px', color: ink }).setOrigin(0.5);
+        this.tweens.add({ targets: image, y: 686, duration: 700, yoyo: true, repeat: -1, delay: i * 140, ease: 'Sine.easeInOut' });
       }
+      this.add.text(360, 850, receipt.newBest ? '新纪录已盖章 · 去地图看看自己的进步' : '每次通关都有材料，慢慢合出新员工', { fontFamily: FONT_FAMILY, fontSize: '22px', color: '#8b6041' }).setOrigin(0.5);
+      const next = this.gameController.getLevelConfig().chapterEnd ? '查看本章回执' : '收好，选择下一关战术';
+      button(this, 360, 935, 540, next, () => this.continueVictory());
+      button(this, 360, 1045, 540, '去工位，拆通关快递', () => this.continueVictory(true));
+      this.add.text(360, 1120, '物品已寄存，稍后领也不会丢', { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#8b7c64' }).setOrigin(0.5);
     }
-    
-    // 清理旧的overlay避免重复
-    if (this.victoryOverlay) {
-      this.victoryOverlay.destroy();
+    this.rewardView = this.add.container(0, 0, this.children.list.slice(start));
+    this.victoryOverlay?.add(this.rewardView);
+  }
+
+  private continueVictory(workstation = false) {
+    if (!this.rewardReceipt || this.victoryLeaving) return;
+    this.victoryLeaving = true;
+    const chapterEnd = this.gameController.getLevelConfig().chapterEnd;
+    const data = { gameController: this.gameController, gameConfig: this.gameConfig, won: true, afterimageMode: this.afterimageMode, afterimageMerges: this.afterimageMergeCount, reward: this.rewardReceipt };
+    if (workstation) {
+      this.scene.start('WorkstationScene', { ...data, returnTo: chapterEnd ? undefined : 'UpgradeScene' });
+      return;
     }
-    const state = this.gameController.getGameState();
-    const target = this.gameController.getLevelConfig().targetBallLevel ?? state.highestBallLevel;
-    const shade = this.add.rectangle(360, 660, 620, 870, 0xfff9eb, 0.96);
-    const ticket = this.add.graphics();
-    ticket.fillStyle(0xf1e5cd).fillRoundedRect(106, 355, 508, 580, 28);
-    ticket.lineStyle(2, 0xc7b38f).strokeRoundedRect(106, 355, 508, 580, 28);
-    ticket.lineStyle(2, 0xd1bd98);
-    for (let x = 128; x < 590; x += 20) ticket.lineBetween(x, 858, x + 10, 858);
-    const title = this.add.text(360, 412, '坏情绪，碰掉了！', { fontFamily: FONT_FAMILY, fontSize: '38px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
-    const hero = this.add.image(360, 596, 'characters', `ball_${target}`).setDisplaySize(180, 180);
-    const stage = this.gameController.getLevelConfig();
-    const summary = this.gameController.getRunSummary();
-    const stamp = this.add.text(514, 720, '准点\n下班', { fontFamily: FONT_FAMILY, fontSize: '27px', color: '#af6549', align: 'center', backgroundColor: '#fff3db', padding: { x: 12, y: 8 } }).setOrigin(0.5).setAngle(-12);
-    const subtitle = this.add.text(360, 750, `${characterNames[target]} 到岗
-最高 ${summary.bestCombo} 连合 · 合成 ${summary.merges} 次`, { fontFamily: FONT_FAMILY, fontSize: '25px', color: ink, align: 'center', lineSpacing: 12 }).setOrigin(0.5);
-    const footer = this.add.text(360, 893, stage.chapterEnd ? '全员到齐，今天到此为止' : '带着好心情，选下一关战术', { fontFamily: FONT_FAMILY, fontSize: '21px', color: '#8b7c64' }).setOrigin(0.5);
-    const root = this.add.container(0, 0, [shade, ticket, title, hero, subtitle, stamp, footer]).setDepth(30);
-    this.victoryOverlay = root;
-    root.setAlpha(0);
-    this.tweens.add({ targets: root, alpha: 1, duration: 200 });
-    hero.setDisplaySize(90, 90);
-    this.tweens.add({ targets: hero, displayWidth: 180, displayHeight: 180, duration: 500, ease: 'Back.Out' });
-    this.tweens.add({ targets: hero, y: 578, delay: 500, duration: 550, yoyo: true, ease: 'Sine.easeInOut' });
-    stamp.setScale(2.4).setAlpha(0);
-    this.tweens.add({ targets: stamp, scaleX: 1, scaleY: 1, alpha: 1, delay: 450, duration: 230, ease: 'Cubic.easeIn' });
-    paperConfetti(this, root);
+    this.scene.start(chapterEnd ? 'GameOverScene' : 'UpgradeScene', data);
   }
 
   update(time: number) {
@@ -824,16 +861,6 @@ export class MainScene extends Phaser.Scene {
       this.uiTexts.hint?.setText('过关了！挑选下一关的战术');
       this.showVictory();
       
-      // Award workstation items
-      this.awardWorkstationItems();
-      
-      // 开发模式下可禁用自动转场
-      if (!this.noAutoTransition) {
-        this.time.delayedCall(2200, () => {
-          const destination = this.gameController.getLevelConfig().chapterEnd ? 'GameOverScene' : 'UpgradeScene';
-          this.scene.start(destination, { gameController: this.gameController, gameConfig: this.gameConfig, won: true, afterimageMode: this.afterimageMode, afterimageMerges: this.afterimageMergeCount });
-        });
-      }
       return;
     }
 

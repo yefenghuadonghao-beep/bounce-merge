@@ -210,6 +210,23 @@ describe('WorkstationSystem', () => {
   });
 
   describe('employee production', () => {
+    it('preserves fractional production when collecting whole coins', () => {
+      system.addItemToInbox('document', 5);
+      system.addItemToInbox('document', 5);
+      system.placeItemOnDesk(system.getState().inbox[0].id, 0);
+      system.mergeItemFromInbox(system.getState().inbox[0].id, 0);
+      clock.advance(540000); // 实习生 9 分钟产出 1.5 币。
+      system.update();
+      expect(system.collectCoins(0)).toBe(1);
+      const employee = system.getState().desks[0].content;
+      if (!employee || !('producedCoins' in employee)) throw new Error('Missing employee');
+      expect(employee.producedCoins).toBeCloseTo(0.5);
+      clock.advance(180000);
+      system.update();
+      expect(system.collectCoins(0)).toBe(1);
+      expect(employee.producedCoins).toBeCloseTo(0);
+    });
+
     it('should produce coins over time', () => {
       system.addItemToInbox('document', 5);
       system.addItemToInbox('document', 5);

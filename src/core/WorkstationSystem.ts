@@ -302,7 +302,7 @@ export class WorkstationSystem {
     
     if (coins > 0) {
       this.state.coins += coins;
-      employee.producedCoins = 0;
+      employee.producedCoins -= coins;
       employee.lastCollectTime = this.clock.now();
     }
     

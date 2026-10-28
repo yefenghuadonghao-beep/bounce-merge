@@ -59,15 +59,14 @@ export class WeChatPlatform implements IPlatform {
   }
 
   async saveData(key: string, value: string): Promise<void> {
-    try {
-      this.wx.setStorageSync(`${STORAGE_PREFIX}${key}`, value);
-    } catch (e) {
-      console.warn('wx.setStorageSync failed', e);
-    }
+    // 让业务层保留未完成状态并提供重试，不能把写入失败当成领奖成功。
+    this.wx.setStorageSync(`${STORAGE_PREFIX}${key}`, value);
   }
 
   async loadData(key: string): Promise<string | null> {
-    return this.readStorage(`${STORAGE_PREFIX}${key}`);
+    // 读取异常不等于没有存档，避免业务层创建新档覆盖已有资产。
+    const value = this.wx.getStorageSync(`${STORAGE_PREFIX}${key}`);
+    return typeof value === 'string' && value !== '' ? value : null;
   }
 
   getCurrentTime(): number {

@@ -19,6 +19,8 @@ export class GameController {
   private summary = { merges: 0, bestCombo: 0, highest: 1 };
   private levelSummary = { score: 0, merges: 0, bestCombo: 0, highest: 1 };
   private levelCount = 0;
+  private levelShotsUsed = 0;
+  private completionId = '';
   private checkpoint = '';
   private checkpointSummary = { merges: 0, bestCombo: 0, highest: 1 };
   private gameState: GameStateManager;
@@ -62,6 +64,7 @@ export class GameController {
   }
 
   useShot() {
+    if (this.gameState.getState().shotsRemaining > 0) this.levelShotsUsed++;
     this.gameState.useShot();
   }
 
@@ -126,6 +129,8 @@ export class GameController {
 
   advanceLevel() {
     this.gameState.advanceLevel();
+    this.levelShotsUsed = 0;
+    this.completionId = '';
     this.levelSummary = { score: 0, merges: 0, bestCombo: 0, highest: 1 };
     this.checkpoint = this.gameState.serialize();
     this.checkpointSummary = { ...this.summary };
@@ -142,11 +147,21 @@ export class GameController {
   retryLevel() {
     this.gameState.deserialize(this.checkpoint);
     this.summary = { ...this.checkpointSummary };
+    this.levelShotsUsed = 0;
+    this.completionId = '';
     this.levelSummary = { score: 0, merges: 0, bestCombo: 0, highest: this.gameState.getState().highestBallLevel };
   }
 
   getRunSummary() {
     return { ...this.summary };
+  }
+
+  getLevelShotsUsed() { return this.levelShotsUsed; }
+
+  // 同一局重复回调沿用回执编号，重试和换关才开启新的领奖轮次。
+  getCompletionId() {
+    if (!this.completionId) this.completionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return this.completionId;
   }
 
   getLevelSummary() {
@@ -155,6 +170,8 @@ export class GameController {
 
   reset() {
     this.summary = { merges: 0, bestCombo: 0, highest: 1 };
+    this.levelShotsUsed = 0;
+    this.completionId = '';
     this.levelSummary = { score: 0, merges: 0, bestCombo: 0, highest: 1 };
     this.gameState.reset();
     this.checkpoint = this.gameState.serialize();
@@ -167,6 +184,8 @@ export class GameController {
 
   load(data: string) {
     this.gameState.deserialize(data);
+    this.levelShotsUsed = 0;
+    this.completionId = '';
     this.levelSummary = { score: 0, merges: 0, bestCombo: 0, highest: this.gameState.getState().highestBallLevel };
     this.checkpoint = this.gameState.serialize();
     this.checkpointSummary = { ...this.summary };

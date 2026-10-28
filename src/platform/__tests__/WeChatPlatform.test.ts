@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { WeChatPlatform } from '../WeChatPlatform';
 import type { WxLike, WxWindowInfo } from '../wx';
+import { WorkstationManager } from '../../core/WorkstationManager';
 
 function fakeAudioParam() {
   return { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() };
@@ -57,12 +58,13 @@ describe('WeChatPlatform 存储', () => {
     expect(await platform.loadData('best_score')).toBe('120');
   });
 
-  it('不存在的 key（wx 返回空字符串）读成 null；存储抛错也不崩', async () => {
+  it('不存在的 key 读成 null，读取异常向业务层传递', async () => {
     const { wx } = createFakeWx();
     const platform = new WeChatPlatform(wx);
     expect(await platform.loadData('missing')).toBeNull();
     vi.mocked(wx.getStorageSync).mockImplementation(() => { throw new Error('boom'); });
-    expect(await platform.loadData('best_score')).toBeNull();
+    await expect(platform.loadData('best_score')).rejects.toThrow('boom');
+    expect(new WeChatPlatform(wx).isSoundEnabled()).toBe(true);
   });
 
   it('音效开关持久化，下次启动保持', () => {
@@ -72,6 +74,63 @@ describe('WeChatPlatform 存储', () => {
     first.setSoundEnabled(false);
     expect(storage.get('bouncemergegame_sound')).toBe('0');
     expect(new WeChatPlatform(wx).isSoundEnabled()).toBe(false);
+  });
+
+  it('写入失败向业务层抛出，让奖励和领取可以原样重试', async () => {
+    const { wx } = createFakeWx();
+    const platform = new WeChatPlatform(wx);
+    WorkstationManager['instance'] = null;
+    const manager = WorkstationManager.getInstance(platform);
+    const completion = { id: 'wx-stage-1', mode: 'classic' as const, level: 1, score: 25, bestCombo: 1, shotsUsed: 1 };
+    vi.mocked(wx.setStorageSync).mockImplementationOnce(() => { throw new Error('storage full'); });
+    await expect(manager.completeStage(completion)).rejects.toThrow('storage full');
+    const state = (await manager.getSystem()).getState();
+    expect(state.coins).toBe(0);
+    expect(state.journey?.records).toEqual({});
+    const reward = await manager.completeStage(completion);
+    expect(state.coins).toBe(35);
+    expect(reward.items).toHaveLength(2);
+
+    vi.mocked(wx.setStorageSync).mockImplementationOnce(() => { throw new Error('storage full'); });
+    await expect(manager.claimStageRewards()).rejects.toThrow('storage full');
+    expect(state.inbox).toHaveLength(3);
+    expect(state.journey?.pendingRewards[0].items).toHaveLength(2);
+    expect(await manager.claimStageRewards()).toEqual({ claimed: 2, remaining: 0 });
+    expect(await manager.completeStage(completion)).toEqual(reward);
+
+    WorkstationManager['instance'] = null;
+    const restored = (await WorkstationManager.getInstance(platform).getSystem()).getState();
+    expect(restored.coins).toBe(35);
+    expect(restored.inbox).toHaveLength(5);
+    expect(restored.journey?.pendingRewards).toEqual([]);
+    expect(restored.journey?.records['classic:1'].clears).toBe(1);
+    WorkstationManager['instance'] = null;
+  });
+
+  it('读档失败不创建新档覆盖资产，重试仍恢复原有工位', async () => {
+    const { wx, storage } = createFakeWx();
+    const platform = new WeChatPlatform(wx);
+    WorkstationManager['instance'] = null;
+    const manager = WorkstationManager.getInstance(platform);
+    const system = await manager.getSystem();
+    system.getState().coins = 88;
+    system.placeItemOnDesk(system.getState().inbox[0].id, 0);
+    await manager.save();
+    const saved = storage.get('bouncemergegame_workstation_state');
+
+    WorkstationManager['instance'] = null;
+    const restored = WorkstationManager.getInstance(platform);
+    const completion = { id: 'wx-retry-read', mode: 'classic' as const, level: 1, score: 25, bestCombo: 1, shotsUsed: 1 };
+    vi.mocked(wx.getStorageSync).mockImplementationOnce(() => { throw new Error('storage temporarily unreadable'); });
+    await expect(restored.completeStage(completion)).rejects.toThrow('storage temporarily unreadable');
+    expect(storage.get('bouncemergegame_workstation_state')).toBe(saved);
+    await restored.completeStage(completion);
+    const state = (await restored.getSystem()).getState();
+    expect(state.coins).toBe(123);
+    expect(state.inbox).toHaveLength(2);
+    expect(state.desks[0].content).toMatchObject({ type: 'document', level: 1 });
+    expect(state.journey?.records['classic:1'].clears).toBe(1);
+    WorkstationManager['instance'] = null;
   });
 });
 

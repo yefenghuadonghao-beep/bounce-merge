@@ -1,6 +1,7 @@
 /**
  * 工位系统类型定义
  */
+import type { JourneyState } from '../core/JourneyProgress';
 
 export type ItemType = 'document' | 'coffee' | 'package' | 'keyboard' | 'mouse' | 'plant';
 export type EmployeeType = 'intern' | 'junior' | 'senior' | 'lead' | 'manager';
@@ -35,6 +36,7 @@ export interface BossInspection {
 }
 
 export interface WorkstationState {
+  journey?: JourneyState;
   coins: number;
   desks: DeskSlot[];
   inbox: WorkstationItem[];
