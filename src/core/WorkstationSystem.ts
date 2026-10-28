@@ -1,3 +1,4 @@
+import { canMergeWorkstationContent } from './WorkstationActions';
 import type {
   WorkstationState,
   WorkstationConfig,
@@ -212,7 +213,7 @@ export class WorkstationSystem {
 
   private mergeIntoDesk(desk1: DeskSlot, content2: WorkstationItem | WorkstationEmployee): boolean {
     const content1 = desk1.content;
-    if (!content1) return false;
+    if (!content1 || !canMergeWorkstationContent(content1, content2, this.config)) return false;
     
     const isEmployee1 = 'producedCoins' in content1;
     const isEmployee2 = 'producedCoins' in content2;
@@ -273,6 +274,15 @@ export class WorkstationSystem {
       return false;
     }
     
+    return true;
+  }
+
+  returnItemToInbox(deskIndex: number): boolean {
+    const desk = this.state.desks[deskIndex];
+    if (!desk?.unlocked || !desk.content || 'producedCoins' in desk.content || this.state.inbox.length >= this.config.maxInboxSize) return false;
+    this.state.inbox.push(desk.content);
+    desk.content = null;
+    desk.occupied = false;
     return true;
   }
 

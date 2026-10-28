@@ -223,6 +223,49 @@ describe('workstation input lifecycle', () => {
     expect(scene['loaded']).toBe(false);
   });
 
+  it('merges one inbox pair into a real empty desk with a single deliberate action', () => {
+    scene['quickMerge']();
+    expect(scene['system'].getState().inbox).toHaveLength(1);
+    expect(scene['system'].getState().desks[0].content).toMatchObject({ type: 'document', level: 2 });
+    expect(scene['system'].getState().totalMerges).toBe(1);
+    scene['quickMerge']();
+    expect(scene['system'].getState().totalMerges).toBe(1);
+  });
+
+  it('a tap selects without consuming material, then tapping an empty desk places it', () => {
+    dragInboxItem();
+    scene['dragStart'] = { x: 150, y: 230 };
+    input.emit('pointerup', { x: 300, y: 560 });
+    expect(scene['selectedContent']?.source).toBe('inbox');
+    expect(scene['system'].getState().inbox).toHaveLength(3);
+    scene['onDeskPointerDown'](1);
+    expect(scene['system'].getState().desks[1].content).toMatchObject({ type: 'document', level: 1 });
+    expect(scene['selectedContent']).toBeNull();
+  });
+
+  it('returns the selected material with its original identity and keeps it on the desk if full', () => {
+    const system = scene['system'];
+    const item = system.getState().inbox[0];
+    system.placeItemOnDesk(item.id, 0);
+    scene['selectedContent'] = { source: 'desk', index: 0, content: item };
+    while (system.addItemToInbox('coffee', 1)) { /* 填满收件箱。 */ }
+    scene['returnSelectedItem']();
+    expect(system.getState().desks[0].content?.id).toBe(item.id);
+    expect(scene['rewardMessage']).toContain('收件箱满');
+    system.getState().inbox.pop();
+    scene['returnSelectedItem']();
+    expect(system.getState().desks[0].content).toBeNull();
+    expect(system.getState().inbox[system.getState().inbox.length - 1]?.id).toBe(item.id);
+  });
+
+  it('never quick-merges or returns materials during a pending reward claim', () => {
+    const snapshot = scene['system'].serialize();
+    scene['claiming'] = true;
+    scene['quickMerge']();
+    scene['returnSelectedItem']();
+    expect(scene['system'].serialize()).toBe(snapshot);
+  });
+
   it('passes the game context into the workstation', () => {
     const home = new HomeScene();
     home.init({ gameController: controller, gameConfig });

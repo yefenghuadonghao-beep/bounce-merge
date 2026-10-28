@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { WorkstationManager } from '../core/WorkstationManager';
+import { canMergeWorkstationContent, findWorkstationMerge, type WorkstationSource } from '../core/WorkstationActions';
+import { mergeBurst } from '../ui/officeEffects';
 import { WorkstationSystem } from '../core/WorkstationSystem';
 import type { GameController } from '../core/GameController';
 import type { GameConfig } from '../types';
@@ -8,6 +10,7 @@ import workstationConfig from '../config/workstationConfig.json';
 import { getPlatform } from '../platform';
 import { button, FONT_FAMILY, ink, panel, paper } from '../ui/theme';
 import { loadOfficeArt, officeProp, itemFrames } from '../ui/officeArt';
+import { assetUrl } from '../platform/assets';
 import { setupHiDpi } from '../ui/hidpi';
 import { workstationGrowth } from '../ui/workstationGrowth';
 
@@ -47,6 +50,15 @@ export class WorkstationScene extends Phaser.Scene {
   private unlockButton?: Phaser.GameObjects.Container;
   private bossInspectionUI?: Phaser.GameObjects.Container;
   
+  private selectedContent: WorkstationSource | null = null;
+  private dragStart?: { x: number; y: number };
+  private selectionHint?: Phaser.GameObjects.Text;
+  private quickMergeLabel?: Phaser.GameObjects.Text;
+  private returnLabel?: Phaser.GameObjects.Text;
+  private growthGuide?: Phaser.GameObjects.Container;
+  private targetHighlights?: Phaser.GameObjects.Graphics;
+  private readyCoins?: Phaser.GameObjects.Text;
+
   private draggedContent: { source: 'inbox' | 'desk'; index: number; content: WorkstationItem | WorkstationEmployee } | null = null;
   private dragPreview: Phaser.GameObjects.Container | null = null;
 
@@ -85,9 +97,20 @@ export class WorkstationScene extends Phaser.Scene {
     this.bossInspectionUI = undefined;
     this.draggedContent = null;
     this.dragPreview = null;
+    this.selectedContent = null;
+    this.dragStart = undefined;
+    this.selectionHint = undefined;
+    this.quickMergeLabel = undefined;
+    this.returnLabel = undefined;
+    this.growthGuide = undefined;
+    this.targetHighlights = undefined;
+    this.readyCoins = undefined;
   }
 
-  preload() { loadOfficeArt(this); }
+  preload() {
+    loadOfficeArt(this);
+    if (!this.textures.exists('workstation-room')) this.load.image('workstation-room', assetUrl('assets/office/workstation-room.webp'));
+  }
 
   async create() {
     setupHiDpi(this);
@@ -164,9 +187,10 @@ export class WorkstationScene extends Phaser.Scene {
   }
 
   private createHeader() {
-    this.add.image(360, 550, 'office-room').setDisplaySize(720, 1080).setAlpha(0.18);
-    panel(this, 28, 266, 664, 648, 0xf1ead8);
-    this.add.text(360, 40, '我的下班事务所', {
+    this.add.image(360, 390, 'office-room').setDisplaySize(720, 780).setAlpha(0.18);
+    panel(this, 28, 266, 664, 648, 0xf1dfbb);
+    this.add.image(360, 559, 'workstation-room').setDisplaySize(664, 720);
+    this.add.text(360, 40, '下班搭子事务所', {
       fontFamily: FONT_FAMILY,
       fontSize: '32px',
       color: ink,
@@ -192,6 +216,8 @@ export class WorkstationScene extends Phaser.Scene {
       fontStyle: 'bold'
     }).setOrigin(0, 0.5);
     
+    this.readyCoins = this.add.text(360, 116, '', { fontFamily: FONT_FAMILY, fontSize: '18px', color: '#8b6041' }).setOrigin(0.5);
+    this.targetHighlights = this.add.graphics().setDepth(9);
     this.updateCoinsDisplay();
   }
   
@@ -200,16 +226,19 @@ export class WorkstationScene extends Phaser.Scene {
     this.growthTitle = this.add.text(52, 145, '', { fontFamily: FONT_FAMILY, fontSize: '24px', color: ink, fontStyle: 'bold' });
     this.growthRecipe = this.add.text(52, 180, '', { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#547044' });
     this.growthStatus = this.add.text(52, 211, '', { fontFamily: FONT_FAMILY, fontSize: '18px', color: '#8b7c64' });
-    this.growthHero = this.add.image(624, 178, 'characters', 'ball_1').setDisplaySize(70, 70);
+    this.add.circle(623, 179, 43, 0xf9f4df).setStrokeStyle(2, 0xb3c296);
+    this.growthHero = this.add.image(624, 178, 'characters', 'ball_1').setDisplaySize(76, 76);
+    this.growthHero.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.showGrowthGuide());
+    this.add.text(624, 226, '图鉴 ›', { fontFamily: FONT_FAMILY, fontSize: '16px', color: '#6d795a' }).setOrigin(0.5);
     this.growthBar = this.add.graphics();
     this.updateGrowth();
   }
 
   private updateGrowth() {
     const growth = workstationGrowth(this.system.getState(), this.config);
-    this.growthTitle?.setText(growth.title);
+    this.growthTitle?.setText(growth.progress >= 1 ? `${growth.title} · 材料齐啦` : growth.title);
     this.growthHero?.setTexture('characters', `ball_${growth.face}`).setDisplaySize(70, 70);
-    this.growthRecipe?.setText(growth.recipe);
+    this.growthRecipe?.setText(growth.recipe.split(' · ')[0]);
     this.growthStatus?.setText(growth.status);
     this.growthBar?.clear().fillStyle(0xd6dec4).fillRoundedRect(52, 237, 616, 6, 3);
     if (growth.progress > 0) this.growthBar?.fillStyle(0x82976a).fillRoundedRect(52, 237, 616 * growth.progress, 6, 3);
@@ -246,7 +275,7 @@ export class WorkstationScene extends Phaser.Scene {
       fontFamily: FONT_FAMILY,
       fontSize: '18px',
       color: '#ffffff',
-      backgroundColor: '#4a9d5f',
+      backgroundColor: '#728a60',
       padding: { x: 12, y: 6 }
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     this.collectAllButton = collectAllBtn;
@@ -256,7 +285,11 @@ export class WorkstationScene extends Phaser.Scene {
       const collected = this.system.collectAllCoins();
       if (collected > 0) {
         this.showCoinReward(360, 180, collected);
+        this.platform.playSound('swap');
         this.updateUI();
+      } else {
+        this.rewardMessage = '搭子正在攒收益，满 1 币就能收取';
+        this.updateRewards();
       }
     });
     
@@ -264,11 +297,11 @@ export class WorkstationScene extends Phaser.Scene {
     if (nextCost !== null) {
       const container = this.add.container(580, topY);
       
-      const btn = this.add.text(0, 0, `解锁 ${nextCost}币`, {
+      const btn = this.add.text(0, 0, `扩建 ${nextCost}币`, {
         fontFamily: FONT_FAMILY,
         fontSize: '18px',
         color: '#ffffff',
-        backgroundColor: state.coins >= nextCost ? '#4a9d5f' : '#999999',
+        backgroundColor: state.coins >= nextCost ? '#728a60' : '#ab9d85',
         padding: { x: 12, y: 6 }
       }).setOrigin(0.5).setInteractive({ useHandCursor: true });
       
@@ -297,26 +330,35 @@ export class WorkstationScene extends Phaser.Scene {
       const container = this.add.container(x, y);
       
       const desk = state.desks[i];
-      const bgColor = desk.unlocked ? 0xfff9eb : 0xe0d9c8;
-      const bg = this.add.rectangle(0, 0, slotWidth, slotHeight, bgColor, 1)
-        .setStrokeStyle(1, 0xcbbd9f);
+      const bgColor = desk.unlocked ? 0xfff9eb : 0xcbbb9c;
+      const bg = this.add.rectangle(0, 0, slotWidth, slotHeight, bgColor, desk.unlocked ? 0 : 0.08)
+        .setStrokeStyle(1, 0xbba57f, 0.08);
       container.add(bg);
       
       if (desk.unlocked) {
         bg.setInteractive({ useHandCursor: true, dropZone: true });
         bg.on('pointerdown', () => this.onDeskPointerDown(i));
       } else {
+        bg.setInteractive({ useHandCursor: true });
+        bg.on('pointerdown', () => {
+          if (this.claiming || this.leaving) return;
+          const next = this.system.getState().desks.findIndex(slot => !slot.unlocked);
+          if (i === next) this.unlockNextDesk();
+          else { this.rewardMessage = '先布置前面的工位，再慢慢扩建'; this.updateRewards(); }
+        });
         // Show lock and cost
         const lockText = officeProp(this, 0, -12, 0, 126).setAlpha(0.25);
 
         const costIndex = i - this.config.initialDesks;
         const cost = this.config.deskUnlockCost[costIndex];
         if (cost) {
-          const costText = this.add.text(0, 54, `待布置 · ${cost}币`, {
+          const costText = this.add.text(0, 54, i === state.desks.findIndex(slot => !slot.unlocked) ? `扩建 · ${cost}币` : '待扩建', {
             fontFamily: FONT_FAMILY,
-            fontSize: '16px',
-            color: '#8b7c64'
-          }).setOrigin(0.5);
+            fontSize: '18px',
+            color: '#7b654a',
+            backgroundColor: '#fff4df',
+            padding: { x: 6, y: 3 }
+          }).setOrigin(0.5).setName('unlock-cost');
           container.add(costText);
         }
         
@@ -341,13 +383,19 @@ export class WorkstationScene extends Phaser.Scene {
       if (state.desks[i].unlocked && !container.getData('unlocked')) {
         while (container.length > 1) container.remove(container.list[1], true);
         const bg = container.list[0] as Phaser.GameObjects.Rectangle;
-        bg.setFillStyle(0xf5ecd7);
+        bg.setFillStyle(0xfff9eb, 0);
+        bg.removeAllListeners('pointerdown');
         bg.setInteractive({ useHandCursor: true, dropZone: true });
         bg.on('pointerdown', () => this.onDeskPointerDown(i));
         container.setData('unlocked', true);
         container.setData('content', null);
       }
       
+      if (!state.desks[i].unlocked) {
+        const label = container.getByName('unlock-cost') as Phaser.GameObjects.Text | null;
+        const next = state.desks.findIndex(slot => !slot.unlocked);
+        label?.setText(i === next ? `扩建 · ${this.system.getNextUnlockCost()}币` : '待扩建');
+      }
       const content = state.desks[i].content;
       const signature = content ? `${content.id}-${content.type}-${'level' in content ? content.level : 'employee'}` : 'empty';
       if (container.getData('content') === signature) {
@@ -366,7 +414,8 @@ export class WorkstationScene extends Phaser.Scene {
       
       const desk = state.desks[i];
       if (desk.unlocked) {
-        container.add(officeProp(this, 0, 2, 0, 144));
+        container.add(officeProp(this, 0, 2, 0, 150));
+        if (!desk.occupied) container.add(this.add.text(0, 57, '空位 · 可摆放', { fontFamily: FONT_FAMILY, fontSize: '17px', color: '#8b7c64' }).setOrigin(0.5));
         container.add(this.add.text(-76, -63, String(i + 1).padStart(2, '0'), { fontFamily: FONT_FAMILY, fontSize: '16px', color: '#9b8e75' }));
       }
       if (desk.occupied && desk.content) {
@@ -382,6 +431,10 @@ export class WorkstationScene extends Phaser.Scene {
   private renderItem(container: Phaser.GameObjects.Container, item: WorkstationItem) {
     const icon = officeProp(this, 22, -7, itemFrames[item.type], 78);
     const label = this.add.text(0, 53, `${this.itemName(item.type)} · ${item.level}级`, { fontFamily: FONT_FAMILY, fontSize: '18px', color: ink, backgroundColor: '#fff8e5', padding: { x: 8, y: 3 } }).setOrigin(0.5);
+    const maxLevel = this.config.itemLevels[item.type].maxLevel;
+    for (let i = 0; i < maxLevel; i++) {
+      container.add(this.add.circle((i - (maxLevel - 1) / 2) * 12, 33, 3.5, i < item.level ? 0x79955e : 0xd9c9a8));
+    }
     container.add([icon, label]);
   }
 
@@ -398,7 +451,9 @@ export class WorkstationScene extends Phaser.Scene {
       event.stopPropagation();
       this.collectFromDesk(deskIndex);
     });
-    container.add([icon, coins]);
+    const name = { intern: '困困猫', junior: '续命蛙', senior: '打卡汪', lead: '摸鱼熊', manager: '下班大王' }[employee.type];
+    const title = this.add.text(0, -68, `${name} · ${this.config.employeeProduction[employee.type].coinsPerHour}/时`, { fontFamily: FONT_FAMILY, fontSize: '16px', color: '#547044', backgroundColor: '#f3f6e5', padding: { x: 5, y: 2 } }).setOrigin(0.5);
+    container.add([icon, coins, title]);
   }
 
   private createRewards() {
@@ -463,6 +518,11 @@ export class WorkstationScene extends Phaser.Scene {
     this.previousPage = this.add.text(90, 1220, '← 上页', { fontFamily: FONT_FAMILY, fontSize: '21px', color: ink, padding: { x: 12, y: 10 } }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     this.nextPage = this.add.text(630, 1220, '下页 →', { fontFamily: FONT_FAMILY, fontSize: '21px', color: ink, padding: { x: 12, y: 10 } }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     this.pageLabel = this.add.text(360, 1220, '', { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#8b7c64' }).setOrigin(0.5);
+    this.selectionHint = this.add.text(360, 1269, '点选材料，再点发光工位；也可直接拖动', { fontFamily: FONT_FAMILY, fontSize: '18px', color: '#6d795a' }).setOrigin(0.5);
+    this.quickMergeLabel = this.add.text(650, 1064, '合成一组', { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#547044', fontStyle: 'bold', padding: { x: 10, y: 6 } }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
+    this.quickMergeLabel.on('pointerdown', () => this.quickMerge());
+    this.returnLabel = this.add.text(360, 1220, '收回材料', { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#94623d', padding: { x: 12, y: 10 } }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setVisible(false);
+    this.returnLabel.on('pointerdown', () => this.returnSelectedItem());
     this.previousPage.on('pointerdown', () => this.changeInboxPage(-1));
     this.nextPage.on('pointerdown', () => this.changeInboxPage(1));
     this.renderInbox();
@@ -483,7 +543,7 @@ export class WorkstationScene extends Phaser.Scene {
     const state = this.system.getState();
     const pages = Math.max(1, Math.ceil(state.inbox.length / 6));
     this.inboxPage = Math.min(this.inboxPage, pages - 1);
-    this.inboxTitle?.setText(`收件箱 ${state.inbox.length}/${this.config.maxInboxSize} · 同款同级可合并`);
+    this.inboxTitle?.setText(`收件箱 ${state.inbox.length}/${this.config.maxInboxSize}`);
     this.pageLabel?.setText(`${this.inboxPage + 1} / ${pages} 页`);
     this.previousPage?.setAlpha(this.inboxPage > 0 ? 1 : 0.35);
     this.nextPage?.setAlpha(this.inboxPage < pages - 1 ? 1 : 0.35);
@@ -500,8 +560,103 @@ export class WorkstationScene extends Phaser.Scene {
     }
   }
 
+  private updateSelection() {
+    if (!this.loaded) return;
+    const state = this.system.getState();
+    const selected = this.draggedContent ?? this.selectedContent;
+    const canReturn = selected?.source === 'desk' && !('producedCoins' in selected.content);
+    this.returnLabel?.setVisible(Boolean(canReturn));
+    this.pageLabel?.setVisible(!canReturn);
+    this.quickMergeLabel?.setAlpha(findWorkstationMerge(state, this.config) ? 1 : 0.45);
+    let hint = '点选材料，再点发光工位；也可直接拖动';
+    if (selected) hint = '绿框可合成 · 橙框可摆放 · 点击收件箱可换选';
+    this.selectionHint?.setText(hint);
+    const graphics = this.targetHighlights;
+    if (!graphics) return;
+    graphics.clear();
+    if (!selected) return;
+    for (let i = 0; i < state.desks.length; i++) {
+      const desk = state.desks[i];
+      const view = this.deskGraphics.get(i);
+      if (!desk.unlocked || !view || (selected.source === 'desk' && selected.index === i)) continue;
+      const merge = desk.content && canMergeWorkstationContent(selected.content, desk.content, this.config);
+      if (desk.occupied && !merge) continue;
+      graphics.lineStyle(merge ? 4 : 2, merge ? 0x799853 : 0xd69b61, 0.95).strokeRoundedRect(view.x - 86, view.y - 68, 172, 136, 16);
+    }
+    if (selected.source === 'inbox') {
+      const view = this.inboxGraphics[selected.index - this.inboxPage * 6];
+      if (view) graphics.lineStyle(3, 0xc48855).strokeRoundedRect(view.x - 44, view.y - 52, 88, 104, 10);
+    }
+    if (selected.source === 'desk') {
+      const view = this.deskGraphics.get(selected.index);
+      if (view) graphics.lineStyle(3, 0xc48855).strokeRoundedRect(view.x - 88, view.y - 70, 176, 140, 16);
+    }
+  }
+
+  private quickMerge() {
+    if (this.claiming || this.leaving) return;
+    this.cancelDrag();
+    const match = findWorkstationMerge(this.system.getState(), this.config);
+    if (!match) {
+      this.rewardMessage = '暂时没有同款可合成，闯关补货或先腾出空位';
+      this.updateRewards();
+      return;
+    }
+    if (match.prepare && !this.system.placeItemOnDesk(match.prepare.id, match.target)) return;
+    this.draggedContent = match.source;
+    this.handleDrop(match.target);
+    this.cancelDrag();
+  }
+
+  private returnSelectedItem() {
+    if (this.claiming || this.leaving || this.selectedContent?.source !== 'desk') return;
+    const selected = this.selectedContent;
+    const desk = this.system.getState().desks[selected.index];
+    if (desk.content?.id !== selected.content.id) { this.cancelDrag(); return; }
+    if (!this.system.returnItemToInbox(selected.index)) {
+      this.rewardMessage = '收件箱满了，先合成或摆放一些材料';
+      this.updateRewards();
+      return;
+    }
+    this.cancelDrag();
+    this.inboxPage = Math.floor((this.system.getState().inbox.length - 1) / 6);
+    this.platform.playSound('swap');
+    this.updateUI();
+  }
+
+  private showGrowthGuide() {
+    if (this.claiming || this.leaving || this.growthGuide) return;
+    this.cancelDrag();
+    const start = this.children.length;
+    this.add.rectangle(360, 640, 720, 1280, 0x49392d, 0.5).setInteractive();
+    panel(this, 50, 160, 620, 980);
+    this.add.text(90, 194, '下班搭子图鉴', { fontFamily: FONT_FAMILY, fontSize: '36px', color: ink, fontStyle: 'bold' });
+    this.add.text(90, 255, '同款材料合到满级，再合成一位新搭子', { fontFamily: FONT_FAMILY, fontSize: '22px', color: '#6d795a' });
+    const types = ['intern', 'junior', 'senior', 'lead', 'manager'] as const;
+    const names = ['困困猫', '续命蛙', '打卡汪', '摸鱼熊', '下班大王'];
+    const faces = [1, 4, 5, 7, 10];
+    const recipes = ['两份5级文件 · 普通1–3关收集', '5级咖啡×2（4–6关）或困困猫×2', '5级快递×2（7–8关）或续命蛙×2', '两位打卡汪合成', '两位摸鱼熊合成'];
+    const desks = this.system.getState().desks;
+    for (let i = 0; i < types.length; i++) {
+      const y = 350 + i * 135;
+      const owned = desks.filter(desk => desk.content && 'producedCoins' in desk.content && desk.content.type === types[i]).length;
+      this.add.circle(133, y + 20, 43, owned > 0 ? 0xdce9ca : 0xeee5d3);
+      this.add.image(133, y + 20, 'characters', `ball_${faces[i]}`).setDisplaySize(75, 75).setAlpha(owned > 0 ? 1 : 0.55);
+      this.add.text(197, y - 16, `${names[i]} · ${this.config.employeeProduction[types[i]].coinsPerHour} 币/时`, { fontFamily: FONT_FAMILY, fontSize: '26px', color: ink, fontStyle: 'bold' });
+      this.add.text(197, y + 27, recipes[i], { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#8b7c64' });
+      this.add.text(197, y + 62, owned > 0 ? `已入职 ${owned} 位` : '等待入职', { fontFamily: FONT_FAMILY, fontSize: '18px', color: '#6d795a' });
+    }
+    const close = button(this, 360, 1070, 500, '知道啦，继续布置', () => {
+      this.growthGuide?.destroy(true);
+      this.growthGuide = undefined;
+    });
+    close.container.setDepth(0);
+    this.growthGuide = this.add.container(0, 0, this.children.list.slice(start)).setDepth(200);
+  }
+
   private startDragFromInbox(index: number, item: WorkstationItem) {
     if (this.claiming || this.leaving) return;
+    this.selectedContent = null;
     this.draggedContent = { source: 'inbox', index, content: item };
     this.createDragPreview(item);
   }
@@ -509,7 +664,14 @@ export class WorkstationScene extends Phaser.Scene {
   private onDeskPointerDown(deskIndex: number) {
     if (this.claiming || this.leaving) return;
     const desk = this.system.getState().desks[deskIndex];
-    if (!desk.occupied || !desk.content) return;
+    if (this.selectedContent && (this.selectedContent.source !== 'desk' || this.selectedContent.index !== deskIndex)) {
+      this.draggedContent = this.selectedContent;
+      this.handleDrop(deskIndex);
+      this.cancelDrag();
+      return;
+    }
+    this.selectedContent = null;
+    if (!desk.occupied || !desk.content) { this.updateSelection(); return; }
     
     this.draggedContent = { source: 'desk', index: deskIndex, content: desk.content };
     this.createDragPreview(desk.content);
@@ -522,17 +684,20 @@ export class WorkstationScene extends Phaser.Scene {
     
     const pointer = this.input.activePointer;
     const position = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    this.dragStart = position;
     const container = this.add.container(position.x, position.y);
     container.setDepth(1000);
     container.setAlpha(0.8);
     
     if ('producedCoins' in content) {
-      container.add(this.add.image(0, 0, 'characters', 'ball_1').setDisplaySize(100, 100));
+      const face = { intern: 1, junior: 4, senior: 5, lead: 7, manager: 10 }[content.type];
+      container.add(this.add.image(0, 0, 'characters', `ball_${face}`).setDisplaySize(100, 100));
     } else {
       container.add(officeProp(this, 0, 0, itemFrames[content.type], 100));
     }
     container.setScale(1.12);
     this.dragPreview = container;
+    this.updateSelection();
   }
 
   private onPointerMove(pointer: Phaser.Input.Pointer) {
@@ -546,6 +711,13 @@ export class WorkstationScene extends Phaser.Scene {
     if (!this.draggedContent || !this.dragPreview) return;
     
     const position = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    if (this.dragStart && Math.hypot(position.x - this.dragStart.x, position.y - this.dragStart.y) < 14) {
+      const selected = this.draggedContent;
+      this.cancelDrag();
+      this.selectedContent = selected;
+      this.updateSelection();
+      return;
+    }
     let droppedOnDesk = -1;
     
     // Check which desk we're over
@@ -571,6 +743,9 @@ export class WorkstationScene extends Phaser.Scene {
     this.dragPreview?.destroy();
     this.dragPreview = null;
     this.draggedContent = null;
+    this.selectedContent = null;
+    this.dragStart = undefined;
+    this.updateSelection();
   }
 
   private handleDrop(targetDeskIndex: number) {
@@ -578,6 +753,11 @@ export class WorkstationScene extends Phaser.Scene {
     
     const targetDesk = this.system.getState().desks[targetDeskIndex];
     if (!targetDesk || !targetDesk.unlocked) return;
+    if (targetDesk.occupied && targetDesk.content && !canMergeWorkstationContent(targetDesk.content, this.draggedContent.content, this.config)) {
+      this.rewardMessage = '只有同款同级材料或同类搭子才能合成';
+      this.updateRewards();
+      return;
+    }
     
     if (this.draggedContent.source === 'inbox') {
       const itemId = this.draggedContent.content.id;
@@ -621,6 +801,8 @@ export class WorkstationScene extends Phaser.Scene {
     const title = content && 'producedCoins' in content ? '搭子来上班啦！' : '合成升级！';
     const burst = this.add.text(container.x, container.y - 60, title, { fontFamily: FONT_FAMILY, fontSize: '26px', color: '#62834e', backgroundColor: '#fff9e7', padding: { x: 12, y: 6 } }).setOrigin(0.5).setDepth(100);
     this.tweens.add({ targets: burst, y: burst.y - 45, alpha: 0, duration: 1000, onComplete: () => burst.destroy() });
+    mergeBurst(this, container.x, container.y - 20, 0xa5bb7f, 2, false);
+    this.platform.playSound('merge');
     this.tweens.add({
       targets: container,
       scaleX: 1.2,
@@ -651,7 +833,11 @@ export class WorkstationScene extends Phaser.Scene {
     if (this.claiming || this.leaving) return;
     const success = this.system.unlockDesk();
     if (success) {
+      this.platform.playSound('swap');
       this.updateUI();
+    } else {
+      this.rewardMessage = `扩建还差 ${Math.max(0, (this.system.getNextUnlockCost() ?? 0) - this.system.getState().coins)} 币，闯关可获得`;
+      this.updateRewards();
     }
   }
 
@@ -660,6 +846,7 @@ export class WorkstationScene extends Phaser.Scene {
     this.system.update();
     this.renderDesks();
     this.updateCoinsDisplay();
+    this.updateSelection();
     this.checkBossInspection();
   }
 
@@ -722,12 +909,19 @@ export class WorkstationScene extends Phaser.Scene {
     this.updateGrowth();
     this.updateRewards();
     this.createButtons();
+    this.updateSelection();
     void this.saveWorkstation();
   }
 
   private updateCoinsDisplay() {
     const state = this.system.getState();
-    this.coinsText.setText(`麻薯币: ${state.coins}`);
+    this.coinsText.setText(`麻薯币 ${state.coins}`);
+    let available = 0;
+    for (let i = 0; i < state.desks.length; i++) {
+      const content = state.desks[i].content;
+      if (content && 'producedCoins' in content) available += Math.floor(content.producedCoins);
+    }
+    this.readyCoins?.setText(available > 0 ? `搭子攒下了 ${available} 币 · 顶部可一键收取` : '同款合成升级，满级材料再合成即可招募搭子');
   }
 
   shutdown() {
@@ -736,8 +930,9 @@ export class WorkstationScene extends Phaser.Scene {
     this.input.off('pointerup', this.onPointerUp, this);
     this.input.off('pointerupoutside', this.cancelDrag, this);
     this.game.events.off(Phaser.Core.Events.BLUR, this.cancelDrag, this);
-    this.cancelDrag();
-    if (this.loaded) void this.manager.save().catch(() => undefined);
+    const loaded = this.loaded;
     this.loaded = false;
+    this.cancelDrag();
+    if (loaded) void this.manager.save().catch(() => undefined);
   }
 }
