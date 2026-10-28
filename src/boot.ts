@@ -117,3 +117,8 @@ export async function boot(options: BootOptions): Promise<BootResult> {
 }
 
 export const levelCount = levelConfigs.length;
+
+// Auto-boot for web
+if (typeof window !== 'undefined') {
+  boot().then(result => result.startScene('HomeScene'));
+}
