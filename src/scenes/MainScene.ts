@@ -11,6 +11,8 @@ import afterimageConfigData from '../config/afterimageConfig.json';
 import { button, characterNames, ink, panel, paper, FONT_FAMILY } from '../ui/theme';
 import { setupHiDpi } from '../ui/hidpi';
 import { getPlatform } from '../platform';
+import { WorkstationManager } from '../core/WorkstationManager';
+import type { ItemType } from '../types/workstation';
 
 interface Ball {
   body: MatterJS.BodyType;
@@ -688,6 +690,31 @@ export class MainScene extends Phaser.Scene {
   }
 
   private victoryOverlay?: Phaser.GameObjects.Container;
+  
+  private async awardWorkstationItems() {
+    try {
+      const manager = WorkstationManager.getInstance(this.platform);
+      const current = this.gameController.getGameState();
+      const level = this.gameController.getLevelConfig();
+      
+      // Calculate performance: better scores = more/better items
+      const scoreRatio = current.score / (level.targetScore || 100);
+      const itemCount = scoreRatio >= 1.5 ? 3 : scoreRatio >= 1.0 ? 2 : 1;
+      
+      const itemTypes: ItemType[] = ['document', 'coffee', 'package', 'keyboard', 'mouse', 'plant'];
+      const items: { type: ItemType; level: number }[] = [];
+      
+      for (let i = 0; i < itemCount; i++) {
+        const type = itemTypes[Math.floor(Math.random() * itemTypes.length)];
+        const level = Math.floor(Math.random() * 3) + 1; // Lv 1-3
+        items.push({ type, level });
+      }
+      
+      await manager.addRewardItems(items);
+    } catch (e) {
+      console.warn('Failed to award workstation items:', e);
+    }
+  }
 
   private showVictory() {
     // 开发模式下可完全禁用胜利overlay
@@ -779,6 +806,9 @@ export class MainScene extends Phaser.Scene {
       this.aimArrow?.setVisible(false);
       this.uiTexts.hint?.setText('过关了！挑选下一关的战术');
       this.showVictory();
+      
+      // Award workstation items
+      this.awardWorkstationItems();
       
       // 开发模式下可禁用自动转场
       if (!this.noAutoTransition) {

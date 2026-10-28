@@ -10,6 +10,9 @@ export interface IPlatform {
   saveData(key: string, value: string): Promise<void>;
   loadData(key: string): Promise<string | null>;
   
+  // Time (for idle production)
+  getCurrentTime(): number;
+  
   // Screen & Device
   getScreenSize(): { width: number; height: number };
   getSafeArea(): { top: number; bottom: number; left: number; right: number };
