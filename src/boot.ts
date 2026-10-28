@@ -3,6 +3,7 @@ import { HomeScene } from './scenes/HomeScene';
 import { MainScene } from './scenes/MainScene';
 import { UpgradeScene } from './scenes/UpgradeScene';
 import { GameOverScene } from './scenes/GameOverScene';
+import { WorkstationScene } from './scenes/WorkstationScene';
 import { GameController } from './core/GameController';
 import { IPlatform } from './platform/IPlatform';
 import { setPlatform } from './platform';
@@ -97,6 +98,7 @@ export async function boot(options: BootOptions): Promise<BootResult> {
   game.scene.add('MainScene', MainScene, false);
   game.scene.add('UpgradeScene', UpgradeScene, false);
   game.scene.add('GameOverScene', GameOverScene, false);
+  game.scene.add('WorkstationScene', WorkstationScene, false);
 
   platform.onVisibilityChange((visible) => (visible ? game.resume() : game.pause()));
 

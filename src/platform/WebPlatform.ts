@@ -41,6 +41,10 @@ export class WebPlatform implements IPlatform {
     return this.storage.get(key) ?? null;
   }
 
+  getCurrentTime(): number {
+    return Date.now();
+  }
+
   async loadFont(family: string, faces: readonly FontFaceSpec[]): Promise<string | null> {
     if (typeof FontFace === 'undefined' || typeof document === 'undefined' || !document.fonts) return null;
     try {

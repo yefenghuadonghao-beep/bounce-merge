@@ -1,5 +1,7 @@
 import { boot, levelCount } from './boot';
 import { WebPlatform } from './platform/WebPlatform';
+import { MainScene } from './scenes/MainScene';
+import { WorkstationManager } from './core/WorkstationManager';
 
 const platform = new WebPlatform();
 
@@ -8,40 +10,33 @@ async function start() {
   const { game, gameController, gameConfig, renderScale } = result;
   const urlParams = new URLSearchParams(window.location.search);
   const afterimageMode = urlParams.get('mode') === 'afterimage';
-  
+
   if (import.meta.env.DEV) {
-    // 调试入口仅在开发构建中存在：window 全局、?stage=N 跳关、?scene=upgrade 直达升级页、?mode=afterimage 残影模式。
-    Object.assign(window, { 
-      game, 
-      gameController, 
-      gameConfig, 
+    Object.assign(window, {
+      game,
+      gameController,
+      gameConfig,
       renderScale,
       __bm: {
+        seedWorkstation,
         fire: (angle: number = Math.PI / 2) => {
-          const scene = game.scene.scenes.find((s: any) => s.scene.key === 'MainScene' && s.scene.isActive());
-          console.log('[__bm.fire] scene=', scene?.scene?.key, ', hasDebugFire=', typeof (scene as any)?.debugFire);
-          if (scene && typeof (scene as any).debugFire === 'function') {
-            (scene as any).debugFire(angle);
-          } else {
-            console.log('[__bm.fire] No active MainScene or debugFire not found');
-          }
+          const scene = game.scene.getScene('MainScene');
+          if (scene instanceof MainScene && scene.scene.isActive()) scene.debugFire(angle);
         }
       }
     });
     const requestedStage = Number(urlParams.get('stage'));
     const skip = Number.isInteger(requestedStage) && requestedStage >= 1 && requestedStage <= levelCount ? requestedStage - 1 : 0;
-    
-    // URL参数优先级：?scene > ?mode > ?stage，默认主屏幕
+
+    // 开发入口保留跳关、战术页和残影模式。
     if (urlParams.get('scene') === 'upgrade') {
       result.startScene('UpgradeScene', skip, afterimageMode);
     } else if (afterimageMode || urlParams.has('stage')) {
-      // ?mode=afterimage 或 ?stage=N 直接进入游戏
       result.startScene('MainScene', skip, afterimageMode);
     } else {
       result.startScene('HomeScene');
     }
   } else {
-    // 生产环境：默认主屏幕
     result.startScene('HomeScene');
   }
   return game;
@@ -49,3 +44,55 @@ async function start() {
 
 export const gameReady = start();
 export { platform };
+
+// Dev utility for seeding workstation state
+async function seedWorkstation() {
+  const manager = WorkstationManager.getInstance(platform);
+  const system = await manager.getSystem();
+
+  // Add varied items
+  system.addItemToInbox('document', 1);
+  system.addItemToInbox('document', 3);
+  system.addItemToInbox('coffee', 2);
+  system.addItemToInbox('package', 1);
+  system.addItemToInbox('keyboard', 2);
+
+  // Place some items on desks
+  const state = system.getState();
+  if (state.inbox.length > 0) {
+    system.placeItemOnDesk(state.inbox[0].id, 0);
+  }
+  if (state.inbox.length > 1) {
+    system.placeItemOnDesk(state.inbox[0].id, 1);
+  }
+  if (state.inbox.length > 2) {
+    system.placeItemOnDesk(state.inbox[0].id, 2);
+  }
+
+  // Create employees by merging high-level items
+  system.addItemToInbox('document', 5);
+  system.addItemToInbox('document', 5);
+  if (state.inbox.length >= 2) {
+    const item1 = state.inbox[0].id;
+    const item2 = state.inbox[1].id;
+    system.placeItemOnDesk(item1, 3);
+    system.placeItemOnDesk(item2, 4);
+    system.mergeItems(3, 4); // Creates intern
+  }
+
+  system.addItemToInbox('coffee', 5);
+  system.addItemToInbox('coffee', 5);
+  if (state.inbox.length >= 2) {
+    const item1 = state.inbox[0].id;
+    const item2 = state.inbox[1].id;
+    system.placeItemOnDesk(item1, 5);
+    system.placeItemOnDesk(item2, 3);
+    system.mergeItems(5, 3); // Creates junior
+  }
+
+  // Give some coins
+  state.coins = 250;
+
+  await manager.save();
+  console.log('Workstation seeded! Refresh to see changes.');
+}

@@ -5,12 +5,13 @@ import { MergeCharge } from '../core/MergeCharge';
 import { battlePlanEffects } from '../core/BattlePlan';
 import { ShotQueue } from '../core/ShotQueue';
 import { AfterimageSystem } from '../core/AfterimageSystem';
-import { assetUrl } from '../platform/assets';
-import characterAtlas from '../config/characterAtlas.json';
 import afterimageConfigData from '../config/afterimageConfig.json';
 import { button, characterNames, ink, panel, paper, FONT_FAMILY } from '../ui/theme';
+import { loadOfficeArt, officeProp } from '../ui/officeArt';
 import { setupHiDpi } from '../ui/hidpi';
 import { getPlatform } from '../platform';
+import { WorkstationManager } from '../core/WorkstationManager';
+import type { ItemType } from '../types/workstation';
 
 interface Ball {
   body: MatterJS.BodyType;
@@ -135,7 +136,7 @@ export class MainScene extends Phaser.Scene {
 
   preload() {
     // 帧数据由 scripts/build-character-atlas.mjs 生成：每帧为贴合角色轮廓的正方形，显示尺寸与碰撞圆一致。
-    this.load.atlas('characters', assetUrl('assets/characters/office-mochi.png'), characterAtlas);
+    loadOfficeArt(this);
   }
 
   create() {
@@ -144,7 +145,11 @@ export class MainScene extends Phaser.Scene {
     this.matter.world.setGravity(0, this.gameConfig.physics.gravity);
 
     paper(this);
+    this.add.image(360, 640, 'office-room').setDisplaySize(850, 1280).setAlpha(0.25);
     panel(this, 45, 220, 630, 880, 0xfffcf2);
+    const decor = this.gameController.getLevelConfig().level % 3;
+    officeProp(this, 590, 945, decor + 1, 125).setAlpha(0.10);
+    officeProp(this, 125, 670, 6, 100).setAlpha(0.08);
     const chapterTitle = this.afterimageMode ? '残影模式 · 轨迹成路' : '第一章 · 打工日常';
     this.add.text(82, 246, chapterTitle, { fontFamily: FONT_FAMILY, fontSize: '23px', color: ink, fontStyle: 'bold' });
     const stageTitle = this.afterimageMode ? '残影弹珠' : (this.gameController.getLevelConfig().title ?? '碰一碰就下班');
@@ -319,13 +324,17 @@ export class MainScene extends Phaser.Scene {
     for (let i = 0; i < obstacles.length; i++) {
       const obstacle = obstacles[i];
       if (obstacle.radius) {
+        this.add.circle(obstacle.x + 3, obstacle.y + 5, obstacle.radius, 0xc0ae8c, 0.45);
         const peg = this.add.circle(obstacle.x, obstacle.y, obstacle.radius, 0xe9be69).setStrokeStyle(3, 0x49392d);
+        this.add.circle(obstacle.x - obstacle.radius * 0.25, obstacle.y - obstacle.radius * 0.25, obstacle.radius * 0.28, 0xffedb2, 0.8);
         this.matter.add.gameObject(peg, { isStatic: true, shape: { type: 'circle', radius: obstacle.radius }, restitution: 0.65, label: 'peg' });
       } else {
         const width = obstacle.width ?? 100;
         const height = obstacle.height ?? 18;
         const angle = obstacle.angle ?? 0;
+        this.add.rectangle(obstacle.x + 2, obstacle.y + 6, width, height + 3, 0xb7a384, 0.4).setRotation(angle);
         this.add.rectangle(obstacle.x, obstacle.y, width, height, 0xb9c9a1).setRotation(angle).setStrokeStyle(3, 0x49392d);
+        this.add.rectangle(obstacle.x, obstacle.y - 2, width - 10, 3, 0xe2e9cd, 0.7).setRotation(angle);
         this.matter.add.rectangle(obstacle.x, obstacle.y, width, height, { isStatic: true, angle, restitution: 0.2, friction: 0.005, label: 'floor' });
       }
     }
@@ -688,6 +697,31 @@ export class MainScene extends Phaser.Scene {
   }
 
   private victoryOverlay?: Phaser.GameObjects.Container;
+  
+  private async awardWorkstationItems() {
+    try {
+      const manager = WorkstationManager.getInstance(this.platform);
+      const current = this.gameController.getGameState();
+      const level = this.gameController.getLevelConfig();
+      
+      // Calculate performance: better scores = more/better items
+      const scoreRatio = current.score / (level.targetScore || 100);
+      const itemCount = scoreRatio >= 1.5 ? 3 : scoreRatio >= 1.0 ? 2 : 1;
+      
+      const itemTypes: ItemType[] = ['document', 'coffee', 'package', 'keyboard', 'mouse', 'plant'];
+      const items: { type: ItemType; level: number }[] = [];
+      
+      for (let i = 0; i < itemCount; i++) {
+        const type = itemTypes[Math.floor(Math.random() * itemTypes.length)];
+        const level = Math.floor(Math.random() * 3) + 1; // Lv 1-3
+        items.push({ type, level });
+      }
+      
+      await manager.addRewardItems(items);
+    } catch (e) {
+      console.warn('Failed to award workstation items:', e);
+    }
+  }
 
   private showVictory() {
     // 开发模式下可完全禁用胜利overlay
@@ -779,6 +813,9 @@ export class MainScene extends Phaser.Scene {
       this.aimArrow?.setVisible(false);
       this.uiTexts.hint?.setText('过关了！挑选下一关的战术');
       this.showVictory();
+      
+      // Award workstation items
+      this.awardWorkstationItems();
       
       // 开发模式下可禁用自动转场
       if (!this.noAutoTransition) {
