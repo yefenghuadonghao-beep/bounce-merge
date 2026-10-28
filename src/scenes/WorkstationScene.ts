@@ -32,6 +32,7 @@ export class WorkstationScene extends Phaser.Scene {
     
     paper(this);
     this.createHeader();
+    this.createTutorial();
     this.createDesks();
     this.createInbox();
     this.createButtons();
@@ -207,7 +208,7 @@ export class WorkstationScene extends Phaser.Scene {
     }
   }
 
-  private renderItem(container: Phaser.GameObjects.Container, item: WorkstationItem, dragging = false) {
+  private renderItem(container: Phaser.GameObjects.Container, item: WorkstationItem) {
     const colorMap: Record<ItemType, number> = {
       document: 0xffd4a3,
       coffee: 0xd4a574,

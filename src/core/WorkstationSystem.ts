@@ -46,8 +46,20 @@ export class WorkstationSystem {
         bossInspection: null
       };
       
-      this.scheduleNextBossInspection();
+      // Give starter items for new players
+      this.addStarterItems();
+      
+      // Schedule first boss inspection for later (not immediately)
+      const now = clock.now();
+      this.nextBossInspectionTime = now + this.config.bossInspection.intervalMax + 300000; // +5 min buffer
     }
+  }
+  
+  private addStarterItems() {
+    // Give new players a starter set to demonstrate the system
+    this.addItemToInbox('document', 1);
+    this.addItemToInbox('document', 1);
+    this.addItemToInbox('coffee', 1);
   }
 
   getState(): WorkstationState {

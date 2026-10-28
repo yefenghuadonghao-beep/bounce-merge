@@ -694,7 +694,7 @@ export class MainScene extends Phaser.Scene {
   private async awardWorkstationItems() {
     try {
       const manager = WorkstationManager.getInstance(this.platform);
-      const current = this.gameController.getCurrentRun();
+      const current = this.gameController.getGameState();
       const level = this.gameController.getLevelConfig();
       
       // Calculate performance: better scores = more/better items

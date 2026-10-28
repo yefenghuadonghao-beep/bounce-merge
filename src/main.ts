@@ -1,4 +1,4 @@
-import { bootGame } from './boot';
+import './boot';
 
 // Dev utility for seeding workstation state
 if (import.meta.env.DEV) {
@@ -57,5 +57,3 @@ if (import.meta.env.DEV) {
     }
   };
 }
-
-bootGame();
