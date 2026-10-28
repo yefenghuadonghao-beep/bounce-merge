@@ -5,7 +5,8 @@ import { GameController } from '../core/GameController';
 import { GameConfig } from '../types';
 import { button, ink, panel, paper, FONT_FAMILY, characterNames } from '../ui/theme';
 import { setupHiDpi } from '../ui/hidpi';
-import { loadOfficeArt, officeObstacle } from '../ui/officeArt';
+import { loadOfficeArt } from '../ui/officeArt';
+import { boardPreview } from '../ui/boardPreview';
 
 export class HomeScene extends Phaser.Scene {
   private gameController!: GameController;
@@ -95,19 +96,7 @@ export class HomeScene extends Phaser.Scene {
     this.add.text(105, 270, `${String(index + 1).padStart(2, '0')} / ${stage.title}`, { fontFamily: FONT_FAMILY, fontSize: '34px', color: ink, fontStyle: 'bold' });
     this.add.text(105, 327, `目标：${characterNames[stage.targetBallLevel ?? 2]} · ${stage.shots}次发射`, { fontFamily: FONT_FAMILY, fontSize: '23px', color: '#6d795a' });
     panel(this, 220, 387, 280, 350, 0xf1ecd9);
-    const px = (x: number) => 232 + x * 0.355;
-    const py = (y: number) => 390 + (y - 220) * 0.375;
-    const obstacles = stage.obstacles ?? [];
-    for (let i = 0; i < obstacles.length; i++) {
-      const obstacle = obstacles[i];
-      officeObstacle(this, { ...obstacle, x: px(obstacle.x), y: py(obstacle.y), radius: 'radius' in obstacle && obstacle.radius ? obstacle.radius * 0.355 : undefined, width: (obstacle.width ?? 100) * 0.355, height: 7 });
-    }
-    const presets = stage.presetBalls ?? [];
-    for (let i = 0; i < presets.length; i++) {
-      const ball = presets[i];
-      this.add.image(px(ball.x), py(ball.y), 'characters', `ball_${ball.level}`).setDisplaySize(22 + ball.level * 2, 22 + ball.level * 2);
-    }
-    this.add.circle(360, 410, 12, 0xee976e);
+    boardPreview(this, stage, 220, 387, 280, 350);
     this.add.text(360, 782, stage.hint, { fontFamily: FONT_FAMILY, fontSize: '24px', color: ink, wordWrap: { width: 480 }, align: 'center', lineSpacing: 8 }).setOrigin(0.5);
     this.add.text(360, 866, '先看落点，再安排出球顺序', { fontFamily: FONT_FAMILY, fontSize: '21px', color: '#8b7c64' }).setOrigin(0.5);
     button(this, 360, 940, 460, '准备好了，开工  →', () => this.startMode(shadow, index));

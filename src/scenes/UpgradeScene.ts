@@ -7,7 +7,8 @@ import { battleCardCopy } from '../ui/battleCardCopy';
 import { setupHiDpi } from '../ui/hidpi';
 import { assetUrl } from '../platform/assets';
 import { getPlatform } from '../platform';
-import { loadOfficeArt, officeObstacle } from '../ui/officeArt';
+import { loadOfficeArt } from '../ui/officeArt';
+import { boardPreview } from '../ui/boardPreview';
 
 export class UpgradeScene extends Phaser.Scene {
   private gameController!: GameController;
@@ -15,6 +16,7 @@ export class UpgradeScene extends Phaser.Scene {
   private afterimageMode = false;
   private selecting = false;
   private feedback?: Phaser.GameObjects.Text;
+  private mapOverlay?: Phaser.GameObjects.Container;
   private cardViews = new Map<string, { root: Phaser.GameObjects.Container; art: Phaser.GameObjects.Image; stamp: Phaser.GameObjects.Text }>();
 
   constructor() { super({ key: 'UpgradeScene' }); }
@@ -25,6 +27,7 @@ export class UpgradeScene extends Phaser.Scene {
     this.afterimageMode = data.afterimageMode ?? false;
     this.selecting = false;
     this.feedback = undefined;
+    this.mapOverlay = undefined;
     this.cardViews.clear();
   }
 
@@ -47,18 +50,15 @@ export class UpgradeScene extends Phaser.Scene {
     this.add.text(40, 77, '下一关，带哪个搭子？', { fontFamily: FONT_FAMILY, fontSize: '39px', color: ink, fontStyle: 'bold' });
 
 
-    panel(this, 36, 145, 648, 160);
+    panel(this, 36, 145, 648, 182);
     this.add.text(60, 162, `下一关 ${next.level} · ${next.title}`, { fontFamily: FONT_FAMILY, fontSize: '26px', color: ink, fontStyle: 'bold' });
     const target = characterNames[next.targetBallLevel ?? 3];
     const resonance = next.requiredAfterimageMerges ? ` · 共鸣 ${next.requiredAfterimageMerges} 次` : '';
-    this.add.text(60, 203, `目标：${target}${resonance}`, { fontFamily: FONT_FAMILY, fontSize: '22px', color: ink });
-    this.add.text(60, 239, `${next.shots} 球 · 抱团 ${next.shakes ?? 1} · 换球 ${next.swaps ?? 2}`, { fontFamily: FONT_FAMILY, fontSize: '22px', color: '#8b7c64' });
-    this.add.text(60, 279, '队列', { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#8b7c64' });
-    const queue = next.shotSequence ?? [];
-    for (let i = 0; i < Math.min(5, queue.length); i++) {
-      this.add.image(135 + i * 48, 286, 'characters', `ball_${queue[i]}`).setDisplaySize(30, 30);
-    }
-    this.drawMap(next);
+    this.add.text(60, 206, `目标：${target}${resonance}`, { fontFamily: FONT_FAMILY, fontSize: '22px', color: ink });
+    this.add.text(60, 250, next.hint ?? '先看预摆搭子，再安排出球', { fontFamily: FONT_FAMILY, fontSize: '22px', color: '#6d795a', wordWrap: { width: 422 }, lineSpacing: 6 });
+    boardPreview(this, next, 511, 159, 150, 128);
+    this.add.text(586, 303, '看布局 ↗', { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#8b6041' }).setOrigin(0.5);
+    this.add.rectangle(586, 235, 156, 170, 0xffffff, 0).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.showMap(next));
 
     const plans = battlePlans();
     for (let i = 0; i < plans.length; i++) this.createUpgradeButton(plans[i], i, next);
@@ -70,31 +70,37 @@ export class UpgradeScene extends Phaser.Scene {
     });
   }
 
-  private drawMap(level: LevelConfig) {
-    const g = this.add.graphics();
-    g.fillStyle(0xeee6d5).fillRoundedRect(501, 160, 160, 132, 12);
-    const obstacles = level.obstacles ?? [];
-    for (let i = 0; i < obstacles.length; i++) {
-      const obstacle = obstacles[i];
-      const x = 505 + obstacle.x * 0.21;
-      const y = 159 + obstacle.y * 0.115;
-      officeObstacle(this, { ...obstacle, x, y, radius: obstacle.radius ? obstacle.radius * 0.16 : undefined, width: (obstacle.width ?? 100) * 0.21, height: 4 });
+  private showMap(level: LevelConfig) {
+    if (this.selecting || this.mapOverlay) return;
+    const start = this.children.length;
+    const shade = this.add.rectangle(360, 640, 720, 1280, 0x49392d, 0.62).setInteractive();
+    shade.on('pointerdown', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => event.stopPropagation());
+    panel(this, 45, 100, 630, 1080);
+    this.add.text(80, 132, `第 ${level.level} 关 · ${level.title}`, { fontFamily: FONT_FAMILY, fontSize: '32px', color: ink, fontStyle: 'bold' });
+    this.add.text(80, 188, '看清机关和搭子，再选战术', { fontFamily: FONT_FAMILY, fontSize: '23px', color: '#8b7c64' });
+    boardPreview(this, level, 140, 240, 440, 550);
+    this.add.text(80, 827, '前六球 · 从左往右发射', { fontFamily: FONT_FAMILY, fontSize: '22px', color: ink });
+    const queue = level.shotSequence ?? [];
+    for (let i = 0; i < Math.min(6, queue.length); i++) {
+      this.add.image(120 + i * 96, 893, 'characters', `ball_${queue[i]}`).setDisplaySize(52, 52);
+      this.add.text(120 + i * 96, 934, String(i + 1), { fontFamily: FONT_FAMILY, fontSize: '18px', color: '#8b7c64' }).setOrigin(0.5);
     }
-    const seeds = level.presetBalls ?? [];
-    for (let i = 0; i < seeds.length; i++) {
-      this.add.image(505 + seeds[i].x * 0.21, 159 + seeds[i].y * 0.115, 'characters', `ball_${seeds[i].level}`).setDisplaySize(16, 16);
-    }
-    g.fillStyle(0xee976e).fillCircle(580, 180, 5);
+    this.add.text(360, 1000, level.hint ?? '同款相碰，合出目标搭子', { fontFamily: FONT_FAMILY, fontSize: '23px', color: '#547044', wordWrap: { width: 530 }, align: 'center' }).setOrigin(0.5);
+    button(this, 360, 1110, 520, '看好了，返回选卡', () => {
+      this.mapOverlay?.destroy(true);
+      this.mapOverlay = undefined;
+    });
+    this.mapOverlay = this.add.container(0, 0, this.children.list.slice(start)).setDepth(50);
   }
 
   private createUpgradeButton(upgrade: Upgrade, index: number, next: LevelConfig) {
-    const y = 330 + index * 250;
+    const y = 350 + index * 246;
     const start = this.children.length;
     const colors = [0xffedd6, 0xe7eeee, 0xeaf0df];
     const tags = ['多留一手', '掌握顺序', '抱团破局'];
     const names = ['supply', 'control', 'chain'];
     const copy = battleCardCopy(upgrade, next);
-    panel(this, 36, y, 648, 230, colors[index]);
+    panel(this, 36, y, 648, 236, colors[index]);
     this.add.circle(136, y + 100, 80, 0xfffcf2, 0.7);
     const art = this.add.image(136, y + 103, `card-${names[index]}`).setDisplaySize(168, 168);
     if (index === 0) {
@@ -111,11 +117,18 @@ export class UpgradeScene extends Phaser.Scene {
     }
     this.add.text(244, y + 17, upgrade.name, { fontFamily: FONT_FAMILY, fontSize: '31px', color: ink, fontStyle: 'bold' });
     this.add.text(648, y + 24, tags[index], { fontFamily: FONT_FAMILY, fontSize: '18px', color: '#8b6041' }).setOrigin(1, 0);
-    this.add.text(244, y + 64, copy.benefit, { fontFamily: FONT_FAMILY, fontSize: '25px', color: '#547044', fontStyle: 'bold' });
-    this.add.text(244, y + 107, copy.useCase, { fontFamily: FONT_FAMILY, fontSize: '22px', color: ink });
-    this.add.text(244, y + 145, copy.resource, { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#8b7c64' });
+    this.add.text(244, y + 64, copy.benefit, { fontFamily: FONT_FAMILY, fontSize: '24px', color: '#547044', fontStyle: 'bold' });
+    this.add.text(244, y + 102, copy.useCase, { fontFamily: FONT_FAMILY, fontSize: '22px', color: ink });
+    for (let i = 0; i < copy.resources.length; i++) {
+      const resource = copy.resources[i];
+      let color = '#8b7c64';
+      if (resource.after > resource.before) color = '#547044';
+      if (resource.after < resource.before) color = '#a15c40';
+      const value = resource.before === resource.after ? String(resource.after) : `${resource.before}→${resource.after}`;
+      this.add.text(244 + i * 139, y + 132, `${resource.label} ${value}`, { fontFamily: FONT_FAMILY, fontSize: '20px', color, fontStyle: 'bold' });
+    }
     this.add.text(60, y + 199, copy.cost, { fontFamily: FONT_FAMILY, fontSize: '19px', color: '#965c43' });
-    const pick = button(this, 585, y + 190, 145, '带上它', () => this.selectUpgrade(upgrade));
+    const pick = button(this, 585, y + 197, 145, '带上它', () => this.selectUpgrade(upgrade));
     const stamp = this.add.text(155, y + 138, '已装备', { fontFamily: FONT_FAMILY, fontSize: '24px', color: '#a15c40', backgroundColor: '#fff3db', padding: { x: 10, y: 6 } }).setOrigin(0.5).setAngle(-12).setAlpha(0);
     const root = this.add.container(0, 0, this.children.list.slice(start));
     this.cardViews.set(upgrade.id, { root, art, stamp });
@@ -127,7 +140,7 @@ export class UpgradeScene extends Phaser.Scene {
   }
 
   private selectUpgrade(upgrade: Upgrade) {
-    if (this.selecting) return;
+    if (this.selecting || this.mapOverlay) return;
     this.selecting = true;
     this.input.enabled = false;
     this.cardViews.forEach((view, id) => {

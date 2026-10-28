@@ -17,6 +17,7 @@ export interface ScoreEvent {
 
 export class GameController {
   private summary = { merges: 0, bestCombo: 0, highest: 1 };
+  private levelSummary = { score: 0, merges: 0, bestCombo: 0, highest: 1 };
   private levelCount = 0;
   private checkpoint = '';
   private checkpointSummary = { merges: 0, bestCombo: 0, highest: 1 };
@@ -85,6 +86,10 @@ export class GameController {
     this.summary.merges++;
     this.summary.bestCombo = Math.max(this.summary.bestCombo, state.combo);
     this.summary.highest = Math.max(this.summary.highest, level + 1);
+    this.levelSummary.score += awardedScore;
+    this.levelSummary.merges++;
+    this.levelSummary.bestCombo = Math.max(this.levelSummary.bestCombo, state.combo);
+    this.levelSummary.highest = Math.max(this.levelSummary.highest, level + 1);
     
     return {
       score: awardedScore,
@@ -95,7 +100,9 @@ export class GameController {
   processWallBounce(): number {
     const state = this.gameState.getState();
     if (state.wallBounceScore > 0) {
-      return this.gameState.addScore(state.wallBounceScore);
+      const score = this.gameState.addScore(state.wallBounceScore);
+      this.levelSummary.score += score;
+      return score;
     }
     return 0;
   }
@@ -119,6 +126,7 @@ export class GameController {
 
   advanceLevel() {
     this.gameState.advanceLevel();
+    this.levelSummary = { score: 0, merges: 0, bestCombo: 0, highest: 1 };
     this.checkpoint = this.gameState.serialize();
     this.checkpointSummary = { ...this.summary };
   }
@@ -134,14 +142,20 @@ export class GameController {
   retryLevel() {
     this.gameState.deserialize(this.checkpoint);
     this.summary = { ...this.checkpointSummary };
+    this.levelSummary = { score: 0, merges: 0, bestCombo: 0, highest: this.gameState.getState().highestBallLevel };
   }
 
   getRunSummary() {
     return { ...this.summary };
   }
 
+  getLevelSummary() {
+    return { ...this.levelSummary };
+  }
+
   reset() {
     this.summary = { merges: 0, bestCombo: 0, highest: 1 };
+    this.levelSummary = { score: 0, merges: 0, bestCombo: 0, highest: 1 };
     this.gameState.reset();
     this.checkpoint = this.gameState.serialize();
     this.checkpointSummary = { ...this.summary };
@@ -153,6 +167,7 @@ export class GameController {
 
   load(data: string) {
     this.gameState.deserialize(data);
+    this.levelSummary = { score: 0, merges: 0, bestCombo: 0, highest: this.gameState.getState().highestBallLevel };
     this.checkpoint = this.gameState.serialize();
     this.checkpointSummary = { ...this.summary };
   }

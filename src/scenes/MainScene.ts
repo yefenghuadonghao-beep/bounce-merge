@@ -55,6 +55,7 @@ export class MainScene extends Phaser.Scene {
   private canShoot: boolean = true;
   private shotStartedAt = 0;
   private settledSince: number | null = null;
+  private awaitingRescue = false;
   private resolving = false;
   private pendingMerges: [Ball, Ball][] = [];
   private scorePopups: Phaser.GameObjects.Text[] = [];
@@ -95,6 +96,7 @@ export class MainScene extends Phaser.Scene {
     this.canShoot = true;
     this.shotStartedAt = 0;
     this.settledSince = null;
+    this.awaitingRescue = false;
     this.resolving = false;
     this.pendingMerges = [];
     this.scorePopups = [];
@@ -180,7 +182,10 @@ export class MainScene extends Phaser.Scene {
       fontFamily: FONT_FAMILY, fontSize: '23px', color: ink
     }).setOrigin(0.5);
     this.shakeLabel = button(this, 190, 1150, 280, '抱团取暖 ×1', () => this.shakeBoard()).label;
-    this.swapLabel = button(this, 530, 1150, 280, '换个搭子 ×2', () => this.swapBall()).label;
+    this.swapLabel = button(this, 530, 1150, 280, '换个搭子 ×2', () => {
+      if (this.awaitingRescue) this.finishRescue();
+      else this.swapBall();
+    }).label;
     const stage = this.gameController.getLevelConfig();
     const presets = stage.presetBalls ?? [];
     for (let i = 0; i < presets.length; i++) {
@@ -406,12 +411,17 @@ export class MainScene extends Phaser.Scene {
       const requiredMerges = this.gameController.getLevelConfig().requiredAfterimageMerges ?? 1;
       this.uiTexts.progress.setText(`残影共鸣 ${Math.min(requiredMerges, this.afterimageMergeCount)}/${requiredMerges} · 最高 ${characterNames[state.highestBallLevel]}`);
     }
-    const shakeName = this.afterimageMode ? '清影抱团' : '抱团取暖';
+    let shakeName = this.afterimageMode ? '清影抱团' : '抱团取暖';
+    if (this.awaitingRescue) shakeName = '抱团救场';
     this.shakeLabel?.setText(`${shakeName} ×${this.shakesRemaining}`);
     const swapName = this.rotateQueue ? '轮换三球' : '换个搭子';
-    this.swapLabel?.setText(`${swapName} ×${this.swapsRemaining}`);
+    let swapText = `${swapName} ×${this.swapsRemaining}`;
+    if (state.shotsRemaining === 0) swapText = '等待停稳';
+    if (this.awaitingRescue) swapText = '结束本关';
+    this.swapLabel?.setText(swapText);
     this.shakeLabel?.parentContainer?.setAlpha(this.shakesRemaining > 0 ? 1 : 0.45);
-    this.swapLabel?.parentContainer?.setAlpha(this.swapsRemaining > 0 ? 1 : 0.45);
+    const canSwapOrFinish = this.awaitingRescue || (state.shotsRemaining > 0 && this.swapsRemaining > 0);
+    this.swapLabel?.parentContainer?.setAlpha(canSwapOrFinish ? 1 : 0.45);
     if (this.uiTexts.charge) {
       const full = this.charge.rewards >= this.charge.limit;
       this.uiTexts.charge.setText(full ? '本关充能奖励已领满' : `充能 ${this.charge.charge}/${this.charge.threshold} · 3 连合双倍 · 奖励 ${this.charge.rewards}/${this.charge.limit}`);
@@ -461,6 +471,7 @@ export class MainScene extends Phaser.Scene {
     }
     this.shotStartedAt = this.time.now;
     this.settledSince = null;
+    this.awaitingRescue = false;
     this.cameras.main.shake(180, 0.006);
     this.platform.playSound('swap');
     this.updateUI();
@@ -820,7 +831,7 @@ export class MainScene extends Phaser.Scene {
       if (!this.noAutoTransition) {
         this.time.delayedCall(2200, () => {
           const destination = this.gameController.getLevelConfig().chapterEnd ? 'GameOverScene' : 'UpgradeScene';
-          this.scene.start(destination, { gameController: this.gameController, gameConfig: this.gameConfig, won: true, afterimageMode: this.afterimageMode });
+          this.scene.start(destination, { gameController: this.gameController, gameConfig: this.gameConfig, won: true, afterimageMode: this.afterimageMode, afterimageMerges: this.afterimageMergeCount });
         });
       }
       return;
@@ -837,19 +848,43 @@ export class MainScene extends Phaser.Scene {
     }
     this.canShoot = false;
     this.launcherPreview?.setVisible(false);
-    const hint = this.shakesRemaining > 0 ? '最后一球结算中 · 还能用聚拢救场' : '最后一球结算中…';
+    const hint = this.shakesRemaining > 0 ? '等待团子停稳 · 还可以抱团救场' : '最后一球结算中…';
     this.uiTexts.hint?.setText(hint);
     const moving = this.balls.some(ball => !ball.body.isSleeping && Math.hypot(ball.body.velocity.x, ball.body.velocity.y) > 0.3);
     if (moving || time - this.shotStartedAt < (this.afterimageMode ? 1900 : 1000)) {
       this.settledSince = null;
+      if (this.awaitingRescue) {
+        this.awaitingRescue = false;
+        this.updateUI();
+      }
       return;
     }
     if (this.settledSince === null) this.settledSince = time;
-    // 留出救场时间，按下聚拢会重新开始计时。
-    const rescueDelay = this.shakesRemaining > 0 ? 2500 : 700;
-    if (time - this.settledSince < rescueDelay) return;
+    if (time - this.settledSince < 700) return;
+
+    // 有资源就把决定权留给玩家；抱团后重新等待物理结果。
+    if (this.shakesRemaining > 0 && this.balls.length > 0) {
+      if (!this.awaitingRescue) {
+        this.awaitingRescue = true;
+        this.updateUI();
+      }
+      this.uiTexts.hint?.setText(`还剩 ${this.shakesRemaining} 次抱团 · 想好再用，或结束本关`);
+      return;
+    }
+    this.finishFailure();
+  }
+
+  private finishRescue() {
+    if (!this.awaitingRescue || this.resolving) return;
+    if (this.pendingMerges.length > 0 || this.balls.some(ball => !ball.body.isSleeping && Math.hypot(ball.body.velocity.x, ball.body.velocity.y) > 0.3)) return;
+    this.finishFailure();
+  }
+
+  private finishFailure() {
+    if (this.resolving) return;
     this.resolving = true;
-    this.scene.start('GameOverScene', { gameController: this.gameController, gameConfig: this.gameConfig, won: false, afterimageMode: this.afterimageMode });
+    this.awaitingRescue = false;
+    this.scene.start('GameOverScene', { gameController: this.gameController, gameConfig: this.gameConfig, won: false, afterimageMode: this.afterimageMode, afterimageMerges: this.afterimageMergeCount });
   }
 
   // 只有发射的团子留影，顶部发射区和底部收纳区保持畅通。

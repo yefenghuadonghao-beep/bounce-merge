@@ -35,7 +35,7 @@ describe('result report actions', () => {
     controller.useShot();
     scene = new GameOverScene();
     scene.scene = { start: vi.fn() } as unknown as Phaser.Scenes.ScenePlugin;
-    scene.add = { text: node, image: node, circle: node, graphics: node, container: node } as unknown as Phaser.GameObjects.GameObjectFactory;
+    scene.add = { text: vi.fn(node), image: node, circle: node, graphics: node, container: node } as unknown as Phaser.GameObjects.GameObjectFactory;
     scene.children = { length: 0, list: [] } as unknown as Phaser.GameObjects.DisplayList;
     scene.tweens = { add: vi.fn() } as unknown as Phaser.Tweens.TweenManager;
   });
@@ -61,5 +61,32 @@ describe('result report actions', () => {
     actions.get('再挑战一次')!();
     expect(controller.getGameState()).toMatchObject({ currentLevel: 1, shotsRemaining: levels[0].shots });
     expect(scene.scene.start).toHaveBeenCalledWith('MainScene', expect.any(Object));
+  });
+  it('shows the failed stage progress and labels stage versus cumulative statistics', () => {
+    controller.processMerge(1, 1000);
+    scene.init({ gameController: controller, gameConfig: config, won: false });
+    scene.create();
+    const text = vi.mocked(scene.add.text).mock.calls.map(call => call[2]);
+    expect(text).toContain('放空豚');
+    expect(text).toContain('暴躁鼠');
+    expect(text).toContain('合成目标还差 1 级');
+    expect(text).toContain('本关快乐值');
+    expect(text).toContain('本关最高连合');
+    expect(text).toContain('本轮累计 25 快乐值 · 1 次合成');
+  });
+  it('uses the resonance snapshot passed by the board and clears it on the next init', () => {
+    const shadow = new GameController(balls, [{ ...levels[1], level: 1, requiredAfterimageMerges: 4 }], config);
+    shadow.processMerge(2, 1000);
+    scene.init({ gameController: shadow, gameConfig: config, won: false, afterimageMode: true, afterimageMerges: 2 });
+    scene.create();
+    let text = vi.mocked(scene.add.text).mock.calls.map(call => call[2]);
+    expect(text).toContain('目标搭子已合出');
+    expect(text).toContain('残影共鸣 2 / 4 · 还差 2 次');
+    vi.mocked(scene.add.text).mockClear();
+    scene.init({ gameController: shadow, gameConfig: config, won: false, afterimageMode: true });
+    scene.create();
+    text = vi.mocked(scene.add.text).mock.calls.map(call => call[2]);
+    expect(text).toContain('共鸣目标 4 次');
+    expect(text).not.toContain('残影共鸣 2 / 4 · 还差 2 次');
   });
 });

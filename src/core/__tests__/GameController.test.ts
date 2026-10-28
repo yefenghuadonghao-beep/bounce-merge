@@ -225,4 +225,31 @@ describe('level retry checkpoint', () => {
     expect(controller.getGameState().currentLevel).toBe(1);
     expect(controller.getGameState().upgrades).toHaveLength(0);
   });
+
+  it('keeps current-stage highlights separate from earlier stages and failed attempts', () => {
+    const controller = new GameController(mockBallLevels, mockLevelConfigs, mockGameConfig);
+    controller.processMerge(2, 100);
+    controller.processMerge(1, 200);
+    controller.advanceLevel();
+    expect(controller.getLevelSummary()).toEqual({ score: 0, merges: 0, bestCombo: 0, highest: 1 });
+    const merged = controller.processMerge(1, 300);
+    expect(controller.getLevelSummary()).toEqual({ score: merged.score, merges: 1, bestCombo: 1, highest: 2 });
+    expect(controller.getRunSummary()).toEqual({ merges: 3, bestCombo: 2, highest: 3 });
+    const copied = controller.getLevelSummary();
+    copied.merges = 99;
+    expect(controller.getLevelSummary().merges).toBe(1);
+    controller.retryLevel();
+    expect(controller.getLevelSummary()).toEqual({ score: 0, merges: 0, bestCombo: 0, highest: 1 });
+    expect(controller.getRunSummary().merges).toBe(2);
+  });
+
+  it('counts awarded wall-bounce points in the stage score and clears them for a new run', () => {
+    const controller = new GameController(mockBallLevels, mockLevelConfigs, mockGameConfig);
+    controller.applyUpgrade({ id: 'wall_bounce_score', name: '', description: '', type: 'passive', value: 10 });
+    controller.applyUpgrade({ id: 'score_boost', name: '', description: '', type: 'multiplier', value: 1.2 });
+    controller.processWallBounce();
+    expect(controller.getLevelSummary()).toEqual({ score: 12, merges: 0, bestCombo: 0, highest: 1 });
+    controller.reset();
+    expect(controller.getLevelSummary().score).toBe(0);
+  });
 });

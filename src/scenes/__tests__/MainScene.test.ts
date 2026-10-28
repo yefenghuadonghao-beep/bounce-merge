@@ -173,6 +173,70 @@ describe('scene turn lifecycle', () => {
     expect(scene.scene.start).toHaveBeenCalledWith('UpgradeScene', expect.any(Object));
   });
 
+  it('keeps a settled rescue available without an invisible timeout', () => {
+    while (controller.getGameState().shotsRemaining > 0) controller.useShot();
+    scene['shakesRemaining'] = 2;
+    scene['balls'] = [{ body: { velocity: { x: 0, y: 0 }, isSleeping: true } as MatterJS.BodyType, sprite: {} as Phaser.GameObjects.Image, level: 1 }];
+    scene['updateUI'] = vi.fn();
+    scene['uiTexts'].hint = { setText: vi.fn() } as unknown as Phaser.GameObjects.Text;
+    scene['finishRescue']();
+    expect(scene.scene.start).not.toHaveBeenCalled();
+    scene.update(1100);
+    scene.update(1900);
+    scene.update(60000);
+    expect(scene['awaitingRescue']).toBe(true);
+    expect(scene['uiTexts'].hint.setText).toHaveBeenLastCalledWith('还剩 2 次抱团 · 想好再用，或结束本关');
+    expect(scene.scene.start).not.toHaveBeenCalled();
+    scene['finishRescue']();
+    scene['finishRescue']();
+    expect(scene.scene.start).toHaveBeenCalledOnce();
+    expect(scene.scene.start).toHaveBeenCalledWith('GameOverScene', expect.objectContaining({ won: false, afterimageMerges: 0 }));
+  });
+
+  it('withdraws the finish action if the board moves again', () => {
+    while (controller.getGameState().shotsRemaining > 0) controller.useShot();
+    const body = { velocity: { x: 0, y: 0 }, isSleeping: false } as MatterJS.BodyType;
+    scene['balls'] = [{ body, sprite: {} as Phaser.GameObjects.Image, level: 1 }];
+    scene['shakesRemaining'] = 1;
+    scene['updateUI'] = vi.fn();
+    scene.update(1100);
+    scene.update(1900);
+    expect(scene['awaitingRescue']).toBe(true);
+    body.velocity.y = 2;
+    scene['finishRescue']();
+    expect(scene.scene.start).not.toHaveBeenCalled();
+    scene.update(2000);
+    expect(scene['awaitingRescue']).toBe(false);
+    expect(scene['settledSince']).toBeNull();
+  });
+
+  it('does not wait forever when a remaining shake has no balls to affect', () => {
+    while (controller.getGameState().shotsRemaining > 0) controller.useShot();
+    scene['shakesRemaining'] = 1;
+    scene.update(1100);
+    scene.update(1900);
+    expect(scene['awaitingRescue']).toBe(false);
+    expect(scene.scene.start).toHaveBeenCalledOnce();
+  });
+
+  it('sends actual shadow progress to the failed report', () => {
+    controller.startRun(shadowLevels);
+    scene.init({ gameController: controller, gameConfig: config, afterimageMode: true });
+    while (controller.getGameState().shotsRemaining > 0) controller.useShot();
+    scene['afterimageMergeCount'] = 2;
+    scene.update(2000);
+    scene.update(2800);
+    expect(scene.scene.start).toHaveBeenCalledWith('GameOverScene', expect.objectContaining({ won: false, afterimageMode: true, afterimageMerges: 2 }));
+  });
+
+  it('clears a pending rescue when the scene is reinitialized', () => {
+    scene['awaitingRescue'] = true;
+    scene.init({ gameController: controller, gameConfig: config });
+    expect(scene['awaitingRescue']).toBe(false);
+    scene['finishRescue']();
+    expect(scene.scene.start).not.toHaveBeenCalled();
+  });
+
   it('merges a ball only once when multiple collision pairs share it', () => {
     const first = { body: {} as MatterJS.BodyType, sprite: {} as Phaser.GameObjects.Arc, level: 1 };
     const second = { ...first };
@@ -235,12 +299,14 @@ describe('scene turn lifecycle', () => {
     scene.cameras = { main: { shake: vi.fn() } } as unknown as Phaser.Cameras.Scene2D.CameraManager;
     scene['updateUI'] = vi.fn();
     scene['settledSince'] = 1000;
+    scene['awaitingRescue'] = true;
     scene['shakeBoard']();
     scene['shakeBoard']();
     expect(setAwake).toHaveBeenCalledTimes(1);
     expect(setVelocity).toHaveBeenCalledTimes(1);
     expect(scene['shakesRemaining']).toBe(0);
     expect(scene['settledSince']).toBeNull();
+    expect(scene['awaitingRescue']).toBe(false);
   });
 
   it('converts a three-merge chain into a rescue without spending shots, resetting next stage', () => {
