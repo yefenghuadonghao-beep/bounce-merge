@@ -94,6 +94,53 @@ describe('WorkstationSystem', () => {
   });
 
   describe('merging', () => {
+    it('merges from the inbox even when every unlocked desk is occupied', () => {
+      for (let i = 0; i < config.initialDesks; i++) {
+        system.addItemToInbox('document', 1);
+        system.placeItemOnDesk(system.getState().inbox[0].id, i);
+      }
+      system.addItemToInbox('document', 1);
+      const itemId = system.getState().inbox[0].id;
+
+      expect(system.mergeItemFromInbox(itemId, 0)).toBe(true);
+      expect(system.getState().inbox).toEqual([]);
+      expect(system.getState().desks[0].content).toMatchObject({ type: 'document', level: 2 });
+      expect(system.getAvailableDesks()).toBe(0);
+      expect(system.getState().totalMerges).toBe(1);
+    });
+
+    it('promotes an inbox item on the destination desk', () => {
+      system.addItemToInbox('coffee', 5);
+      system.placeItemOnDesk(system.getState().inbox[0].id, 0);
+      system.addItemToInbox('coffee', 5);
+
+      expect(system.mergeItemFromInbox(system.getState().inbox[0].id, 0)).toBe(true);
+      expect(system.getState().desks[0].content).toMatchObject({ type: 'junior', producedCoins: 0 });
+      expect(system.getState().inbox).toEqual([]);
+    });
+
+    it('preserves both items when an inbox merge is incompatible or locked', () => {
+      system.addItemToInbox('document', 1);
+      system.placeItemOnDesk(system.getState().inbox[0].id, 0);
+      system.addItemToInbox('coffee', 1);
+      const itemId = system.getState().inbox[0].id;
+      const saved = system.serialize();
+
+      expect(system.mergeItemFromInbox(itemId, 0)).toBe(false);
+      expect(system.mergeItemFromInbox(itemId, config.initialDesks)).toBe(false);
+      expect(system.mergeItemFromInbox('missing', 0)).toBe(false);
+      expect(system.serialize()).toBe(saved);
+    });
+
+    it('rejects merging a desk with itself without changing its item', () => {
+      system.addItemToInbox('document', 1);
+      system.placeItemOnDesk(system.getState().inbox[0].id, 0);
+      const saved = system.serialize();
+
+      expect(system.mergeItems(0, 0)).toBe(false);
+      expect(system.serialize()).toBe(saved);
+    });
+
     it('should merge two identical items of same level', () => {
       system.addItemToInbox('document', 1);
       system.addItemToInbox('document', 1);
@@ -254,7 +301,7 @@ describe('WorkstationSystem', () => {
 
   describe('boss inspection', () => {
     it('should handle boss inspection within window', () => {
-      clock.advance(3700000); // Trigger inspection
+      clock.advance(config.bossInspection.intervalMax + 300000);
       system.update();
       
       expect(system.getState().bossInspection).not.toBeNull();
@@ -266,8 +313,10 @@ describe('WorkstationSystem', () => {
     });
 
     it('should reject handling outside window', () => {
-      clock.advance(3700000);
+      clock.advance(config.bossInspection.intervalMax + 300000);
       system.update();
+
+      expect(system.getState().bossInspection).not.toBeNull();
       
       clock.advance(config.bossInspection.windowDuration + 1000);
       

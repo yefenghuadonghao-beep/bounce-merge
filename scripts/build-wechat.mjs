@@ -24,6 +24,7 @@ function copy(from, to) {
 
 // 运行时用到的资源：角色图集 + 两个字重的 ttf（wx.loadFont 不支持 woff2）。
 copy('assets/characters/office-mochi.png', 'assets/characters/office-mochi.png');
+for (const name of readdirSync(join(root, 'assets/office'))) copy(`assets/office/${name}`, `assets/office/${name}`);
 for (const weight of ['regular', 'bold']) copy(`assets/fonts/mochi-rounded-${weight}.ttf`, `assets/fonts/mochi-rounded-${weight}.ttf`);
 copy('art/fonts/OFL.txt', 'assets/fonts/OFL.txt');
 

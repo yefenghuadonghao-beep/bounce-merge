@@ -179,16 +179,40 @@ export class WorkstationSystem {
   }
 
   mergeItems(deskIndex1: number, deskIndex2: number): boolean {
+    if (deskIndex1 === deskIndex2) return false;
+
     const desk1 = this.state.desks[deskIndex1];
     const desk2 = this.state.desks[deskIndex2];
     
-    if (!desk1 || !desk2 || !desk1.occupied || !desk2.occupied) {
+    if (!desk1?.unlocked || !desk2?.unlocked || !desk1.occupied || !desk2.occupied || !desk2.content) {
       return false;
     }
-    
+
+    if (!this.mergeIntoDesk(desk1, desk2.content)) return false;
+
+    desk2.content = null;
+    desk2.occupied = false;
+    this.state.totalMerges++;
+    return true;
+  }
+
+  mergeItemFromInbox(itemId: string, deskIndex: number): boolean {
+    const desk = this.state.desks[deskIndex];
+    const itemIndex = this.state.inbox.findIndex(item => item.id === itemId);
+    if (!desk?.unlocked || !desk.occupied || itemIndex === -1) return false;
+
+    // 直接合入目标工位，满工位时也不需要临时空位。
+    if (!this.mergeIntoDesk(desk, this.state.inbox[itemIndex])) return false;
+
+    this.state.inbox.splice(itemIndex, 1);
+    this.state.totalItemsPlaced++;
+    this.state.totalMerges++;
+    return true;
+  }
+
+  private mergeIntoDesk(desk1: DeskSlot, content2: WorkstationItem | WorkstationEmployee): boolean {
     const content1 = desk1.content;
-    const content2 = desk2.content;
-    if (!content1 || !content2) return false;
+    if (!content1) return false;
     
     const isEmployee1 = 'producedCoins' in content1;
     const isEmployee2 = 'producedCoins' in content2;
@@ -210,9 +234,6 @@ export class WorkstationSystem {
       emp1.type = nextTier;
       emp1.producedCoins += emp2.producedCoins;
       
-      desk2.content = null;
-      desk2.occupied = false;
-      this.state.totalMerges++;
       return true;
     }
     
@@ -245,18 +266,13 @@ export class WorkstationSystem {
       };
       
       desk1.content = employee;
-      desk2.content = null;
-      desk2.occupied = false;
     } else if (item1.level < itemConfig.maxLevel) {
       // Merge to next level
       item1.level++;
-      desk2.content = null;
-      desk2.occupied = false;
     } else {
       return false;
     }
     
-    this.state.totalMerges++;
     return true;
   }
 
