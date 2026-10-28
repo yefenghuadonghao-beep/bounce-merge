@@ -237,52 +237,100 @@ export class HomeScene extends Phaser.Scene {
     this.tweens.killAll();
     this.children.removeAll(true);
     paper(this);
+    this.add.image(360, 180, 'office-room').setDisplaySize(720, 720).setAlpha(0.12);
     const levels = shadow ? afterimageLevels : classicLevels;
     const progress = routeProgress(this.view, levels, this.records);
-    this.add.text(42, 48, '← 事务所', { fontFamily: FONT_FAMILY, fontSize: '24px', color: ink }).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.scene.restart({ gameController: this.gameController, gameConfig: this.gameConfig }));
-    this.add.text(42, 112, shadow ? '残影实验室' : '一周下班计划', { fontFamily: FONT_FAMILY, fontSize: '48px', color: ink, fontStyle: 'bold' });
+    this.add.text(36, 35, '‹ 返回事务所', { fontFamily: FONT_FAMILY, fontSize: '24px', color: ink, padding: { x: 8, y: 10 } }).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.scene.restart({ gameController: this.gameController, gameConfig: this.gameConfig }));
+    this.add.text(42, 101, shadow ? '残影实验室' : '一周下班计划', { fontFamily: FONT_FAMILY, fontSize: '44px', color: ink, fontStyle: 'bold' });
+    this.add.image(634, 119, 'characters', shadow ? 'ball_4' : 'ball_1').setDisplaySize(86, 86).setAngle(8);
+    this.lobbyPanel(36, 172, 648, 128, 0xfffcf2);
     let status = '正在读取通关记录…';
-    if (this.progressLoaded) status = `已盖章 ${progress.cleared} / ${levels.length} · 每个工位都留下你的成绩`;
-    if (this.progressFailed) status = '记录暂未读取 · 点这里重试，仍可挑战';
-    const statusText = this.add.text(44, 183, status, { fontFamily: FONT_FAMILY, fontSize: '23px', color: '#6d795a' });
+    if (this.progressLoaded) status = `已通关 ${progress.cleared} / ${levels.length}`;
+    if (progress.complete && this.progressLoaded) status = '全线通关！好心情收集完成';
+    if (this.progressFailed) status = '读取失败 · 点这里重试';
+    const statusText = this.add.text(60, 191, status, { fontFamily: FONT_FAMILY, fontSize: '25px', color: '#62794e', fontStyle: 'bold' });
+    this.add.text(656, 198, '通关得物资', { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#8b7c64' }).setOrigin(1, 0);
+    const segment = 588 / levels.length;
+    for (let i = 0; i < levels.length; i++) {
+      const cleared = (this.records[stageKey(this.view, levels[i].level)]?.clears ?? 0) > 0;
+      this.add.rectangle(60 + i * segment, 246, segment - 8, 12, cleared ? 0x8fa775 : 0xe8dfcc).setOrigin(0, 0.5);
+    }
+    this.add.text(60, 267, '✓ 已通关     ● 下一站     点关卡看布局与奖励', { fontFamily: FONT_FAMILY, fontSize: '18px', color: '#8b7c64' });
     if (this.progressFailed) statusText.setInteractive({ useHandCursor: true }).once('pointerdown', () => {
       statusText.disableInteractive().setText('正在读取通关记录…');
       void this.loadProgress(this.viewVersion);
     });
-    this.add.text(44, 224, '点节点看奖励和最佳成绩 · 可自由挑战', { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#8b7c64' });
-    const points = levels.map((_, i) => ({ x: i % 2 === 0 ? 174 : 546, y: 325 + i * (shadow ? 210 : 98) }));
-    const path = this.add.graphics().lineStyle(12, 0xd6debe, 1);
-    for (let i = 1; i < points.length; i++) path.lineBetween(points[i - 1].x, points[i - 1].y, points[i].x, points[i].y);
+
+    // 蛇形路线连接关卡卡片；盖章只取本关记录，跳关不会点亮中间路段。
+    const points = levels.map((_, i) => {
+      if (shadow) return { x: i % 2 === 0 ? 190 : 530, y: 408 + i * 180 };
+      const row = Math.floor(i / 2);
+      const right = (i % 2 === 1) !== (row % 2 === 1);
+      return { x: right ? 530 : 190, y: 408 + row * 180 };
+    });
+    const road = this.add.graphics();
+    for (let i = 1; i < points.length; i++) {
+      const previous = points[i - 1];
+      const current = points[i];
+      const previousCleared = (this.records[stageKey(this.view, levels[i - 1].level)]?.clears ?? 0) > 0;
+      const currentCleared = (this.records[stageKey(this.view, levels[i].level)]?.clears ?? 0) > 0;
+      road.lineStyle(18, 0xe1d6bd).lineBetween(previous.x, previous.y, current.x, current.y);
+      road.lineStyle(7, previousCleared && currentCleared ? 0x9fb380 : 0xfaf5e7).lineBetween(previous.x, previous.y, current.x, current.y);
+      const arrow = current.x >= previous.x ? '›' : '‹';
+      if (current.y === previous.y) this.add.text(360, current.y - 3, arrow, { fontFamily: FONT_FAMILY, fontSize: '32px', color: '#9b896b' }).setOrigin(0.5);
+    }
+    const itemNames = { document: '文件', coffee: '咖啡', package: '快递', keyboard: '键盘', mouse: '鼠标', plant: '绿植' };
     for (let i = 0; i < levels.length; i++) {
-      const { x, y } = points[i];
       const level = levels[i];
+      const { x, y } = points[i];
+      const left = x - 148;
+      const top = y - 78;
       const record = this.records[stageKey(this.view, level.level)];
       const cleared = (record?.clears ?? 0) > 0;
-      let fill = 0xeee6d5;
-      if (cleared) fill = 0xc9d7b3;
-      else if (this.progressLoaded && i === progress.nextIndex) fill = 0xf6c99e;
-      this.add.circle(x, y + 5, 43, 0xc2b497);
-      const node = this.add.circle(x, y, 43, fill).setStrokeStyle(3, 0x776b50).setInteractive({ useHandCursor: true });
-      this.add.text(x, y, String(level.level).padStart(2, '0'), { fontFamily: FONT_FAMILY, fontSize: '30px', color: ink, fontStyle: 'bold' }).setOrigin(0.5);
-      if (cleared) {
-        this.add.circle(x + 30, y + 28, 17, 0x62794e);
-        this.add.text(x + 30, y + 28, '✓', { fontFamily: FONT_FAMILY, fontSize: '23px', color: '#fff9e7', fontStyle: 'bold' }).setOrigin(0.5);
+      const next = this.progressLoaded && !progress.complete && i === progress.nextIndex;
+      let fill = 0xfffcf2;
+      if (cleared) fill = 0xf0f4e5;
+      if (next) fill = 0xffecd4;
+      this.lobbyPanel(left, top, 296, 156, fill);
+      if (next) {
+        const ring = this.add.graphics().lineStyle(3, 0xda9560).strokeRoundedRect(left - 3, top - 3, 302, 162, 22);
+        this.tweens.add({ targets: ring, alpha: 0.35, duration: 1100, yoyo: true, repeat: -1 });
       }
-      const labelX = i % 2 === 0 ? x + 65 : x - 65;
-      const origin = i % 2 === 0 ? 0 : 1;
-      this.add.text(labelX, y - 18, level.title, { fontFamily: FONT_FAMILY, fontSize: '25px', color: ink, fontStyle: 'bold' }).setOrigin(origin, 0.5);
-      let detail = `${level.shots} 发 · 需要巧劲`;
-      if (i < 2) detail = `${level.shots} 发 · 轻松热身`;
-      if (i >= levels.length - 2) detail = `${level.shots} 发 · 烧脑挑战`;
-      if (cleared) detail = `最佳 ${record.bestScore} 快乐值 · ${record.fewestShots} 发`;
-      this.add.text(labelX, y + 18, detail, { fontFamily: FONT_FAMILY, fontSize: '19px', color: '#6d795a' }).setOrigin(origin, 0.5);
-      node.on('pointerdown', () => this.showStageBrief(shadow, i));
+      this.add.circle(left + 47, top + 46, 31, cleared ? 0xcbdab3 : 0xf0debb).setStrokeStyle(2, 0xa89570);
+      this.add.image(left + 47, top + 43, 'characters', `ball_${level.targetBallLevel ?? 2}`).setDisplaySize(53, 53);
+      this.add.text(left + 47, top + 69, String(level.level).padStart(2, '0'), { fontFamily: FONT_FAMILY, fontSize: '18px', color: '#fffaf0', backgroundColor: '#887358', padding: { x: 6, y: 1 } }).setOrigin(0.5);
+      this.add.text(left + 91, top + 18, level.title, { fontFamily: FONT_FAMILY, fontSize: '24px', color: ink, fontStyle: 'bold' });
+      let state = `${level.shots} 发 · 自由挑战`;
+      if (cleared) state = `✓ 已通关 · 最少 ${record.fewestShots} 发`;
+      if (next) state = `下一站 · ${level.shots} 发挑战`;
+      this.add.text(left + 91, top + 54, state, { fontFamily: FONT_FAMILY, fontSize: '18px', color: '#62794e' });
+      const reward = stageRewardPreview(this.view, level.level);
+      officeProp(this, left + 27, top + 112, itemFrames[reward.type], 34);
+      let rewardText = `首通 ${reward.itemLevel}级${itemNames[reward.type]} ×2`;
+      if (cleared) rewardText = `复通 ${reward.itemLevel}级${itemNames[reward.type]} ×1`;
+      if (!this.progressLoaded) rewardText = `${reward.itemLevel}级${itemNames[reward.type]} · 首通双份`;
+      this.add.text(left + 50, top + 99, rewardText, { fontFamily: FONT_FAMILY, fontSize: '19px', color: '#94623d' });
+      let detail = '点开查看目标与奖励  ›';
+      if (cleared) detail = `最佳 ${record.bestScore} 分 · ${record.bestCombo} 连合`;
+      this.add.text(left + 18, top + 130, detail, { fontFamily: FONT_FAMILY, fontSize: '17px', color: '#8b7c64' });
+      const hit = this.add.rectangle(x, y, 296, 156, 0xffffff, 0).setInteractive({ useHandCursor: true });
+      hit.on('pointerdown', () => this.showStageBrief(shadow, i));
     }
+    if (shadow) {
+      const captions = ['留下轨迹\n同款再相遇', '本关 3 连合\n再加 10 币', '通关带回物资\n招募下班搭子', '最后一站\n挑战残影派对'];
+      for (let i = 0; i < points.length; i++) {
+        const x = points[i].x === 190 ? 530 : 190;
+        officeProp(this, x, points[i].y - 22, i % 3 + 1, 58).setAlpha(0.7);
+        this.add.text(x, points[i].y + 26, captions[i], { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#8b7c64', align: 'center', lineSpacing: 5 }).setOrigin(0.5, 0);
+      }
+    }
+    const endY = points[points.length - 1].y + 110;
+    this.add.text(360, endY, '首通双份物资 · 复通可补货 · 3 连合再加 10 币', { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#8b7c64' }).setOrigin(0.5);
     let action = `继续第 ${levels[progress.nextIndex].level} 关  →`;
     if (progress.complete) action = '全线盖章！再闯一次  →';
     if (!this.progressLoaded) action = '从第一关开始  →';
-    button(this, 360, 1120, 620, action, () => this.startMode(shadow, progress.nextIndex));
-    this.add.text(360, 1210, '从第一关连闯，沿途选卡  →', { fontFamily: FONT_FAMILY, fontSize: '23px', color: '#8b6041', padding: { x: 24, y: 14 } }).setOrigin(0.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.startMode(shadow));
+    button(this, 360, 1140, 620, action, () => this.startMode(shadow, progress.nextIndex));
+    this.add.text(360, 1230, '从头连闯，沿途选卡  →', { fontFamily: FONT_FAMILY, fontSize: '23px', color: '#8b6041', padding: { x: 24, y: 14 } }).setOrigin(0.5).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.startMode(shadow));
     this.cameras.main.fadeIn(250, 244, 239, 223);
   }
 
@@ -319,21 +367,28 @@ export class HomeScene extends Phaser.Scene {
       this.add.text(500, 475, hint, { fontFamily: FONT_FAMILY, fontSize: '23px', color: '#8b7c64', align: 'center', lineSpacing: 12 }).setOrigin(0.5);
     }
     this.add.text(360, 700, stage.hint ?? '先找同款，再安排下一球', { fontFamily: FONT_FAMILY, fontSize: '23px', color: ink, wordWrap: { width: 530 }, align: 'center', lineSpacing: 8 }).setOrigin(0.5);
-    panel(this, 80, 770, 560, 175, 0xeaf0df);
-    officeProp(this, 145, 855, itemFrames[reward.type], 90);
     const count = cleared ? reward.repeatCount : reward.firstClearCount;
     const coins = cleared ? reward.repeatCoins : reward.firstClearCoins;
-    let rewardTitle = cleared ? '再通关，补充工位物资' : '首通奖励 · 带回工位';
-    let rewardDetails = `${reward.itemLevel}级${itemNames[reward.type]} ×${count} · ${coins} 币`;
-    let rewardBonus = `本关 3 连合，再加 ${reward.comboBonus} 币`;
+    let rewardTitle = cleared ? '复通补给 · 再带一份回工位' : '首通礼包 · 双份物资带回家';
+    if (!this.progressLoaded) rewardTitle = '通关补给 · 首通双份 / 复通单份';
+    this.add.text(88, 766, rewardTitle, { fontFamily: FONT_FAMILY, fontSize: '24px', color: '#547044', fontStyle: 'bold' });
+    this.lobbyPanel(80, 808, 325, 122, 0xeaf0df);
+    this.lobbyPanel(420, 808, 220, 122, 0xffedd6);
+    officeProp(this, 129, 866, itemFrames[reward.type], 76);
+    let material = `${reward.itemLevel}级${itemNames[reward.type]} ×${count}`;
+    let coinLabel = `+${coins} 币`;
     if (!this.progressLoaded) {
-      rewardTitle = '通关补给 · 首通双份';
-      rewardDetails = `${reward.itemLevel}级${itemNames[reward.type]} · 首通2件 / 复通1件`;
-      rewardBonus = `首通 ${reward.firstClearCoins} 币 / 复通 ${reward.repeatCoins} 币`;
+      material = `${reward.itemLevel}级${itemNames[reward.type]}`;
+      coinLabel = '首通 / 复通';
     }
-    this.add.text(210, 791, rewardTitle, { fontFamily: FONT_FAMILY, fontSize: '24px', color: '#547044', fontStyle: 'bold' });
-    this.add.text(210, 837, rewardDetails, { fontFamily: FONT_FAMILY, fontSize: '22px', color: ink });
-    this.add.text(210, 886, rewardBonus, { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#8b7c64' });
+    this.add.text(181, 839, material, { fontFamily: FONT_FAMILY, fontSize: '24px', color: ink, fontStyle: 'bold' });
+    this.add.text(181, 879, '合成物资，招募搭子', { fontFamily: FONT_FAMILY, fontSize: '18px', color: '#6d795a' });
+    officeProp(this, 463, 866, 7, 54);
+    this.add.text(505, 838, coinLabel, { fontFamily: FONT_FAMILY, fontSize: '25px', color: ink, fontStyle: 'bold' });
+    let coinHint = '解锁更多工位';
+    if (!this.progressLoaded) coinHint = `${reward.firstClearCoins} / ${reward.repeatCoins} 币`;
+    this.add.text(505, 881, coinHint, { fontFamily: FONT_FAMILY, fontSize: '18px', color: '#94623d' });
+    this.add.text(360, 969, `本关 3 连合，额外再得 ${reward.comboBonus} 币`, { fontFamily: FONT_FAMILY, fontSize: '21px', color: '#8b7c64' }).setOrigin(0.5);
     button(this, 360, 1040, 520, cleared ? '再挑战，刷新纪录  →' : `挑战第 ${stage.level} 关  →`, () => this.startMode(shadow, index));
     this.add.text(360, 1116, '物资在工位领取 · 最佳成绩分别保留', { fontFamily: FONT_FAMILY, fontSize: '20px', color: '#8b7c64' }).setOrigin(0.5);
     const close = this.add.text(630, 191, '×', { fontFamily: FONT_FAMILY, fontSize: '36px', color: ink }).setOrigin(0.5).setInteractive({ useHandCursor: true });
