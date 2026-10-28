@@ -66,12 +66,26 @@ export class HomeScene extends Phaser.Scene {
       color: '#8b7c64'
     }).setOrigin(0.5);
     button(this, 360, 805, 400, '开始残影模式', () => this.startMode(true));
+    
+    // Workstation button
+    panel(this, 80, 900, 560, 120);
+    this.add.text(360, 950, '🏢 工位麻薯', {
+      fontFamily: FONT_FAMILY,
+      fontSize: '32px',
+      color: ink,
+      fontStyle: 'bold'
+    }).setOrigin(0.5);
+    button(this, 360, 1010, 300, '进入工位', () => this.goToWorkstation());
 
     this.add.text(360, 1200, '选择游戏模式', {
       fontFamily: FONT_FAMILY,
       fontSize: '24px',
       color: '#a69a82'
     }).setOrigin(0.5);
+  }
+
+  private goToWorkstation() {
+    this.scene.start('WorkstationScene');
   }
 
   private startMode(afterimageMode: boolean) {

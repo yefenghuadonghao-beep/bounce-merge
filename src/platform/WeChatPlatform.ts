@@ -70,6 +70,10 @@ export class WeChatPlatform implements IPlatform {
     return this.readStorage(`${STORAGE_PREFIX}${key}`);
   }
 
+  getCurrentTime(): number {
+    return Date.now();
+  }
+
   private info(): WxWindowInfo {
     return this.windowInfo ??= this.wx.getWindowInfo ? this.wx.getWindowInfo() : this.wx.getSystemInfoSync();
   }

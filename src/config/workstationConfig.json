@@ -1,0 +1,76 @@
+{
+  "initialDesks": 6,
+  "maxDesks": 12,
+  "deskUnlockCost": [100, 200, 400, 800, 1600, 3200],
+  "maxInboxSize": 20,
+  "itemLevels": {
+    "document": {
+      "maxLevel": 5,
+      "promotesTo": "intern"
+    },
+    "coffee": {
+      "maxLevel": 5,
+      "promotesTo": "junior"
+    },
+    "package": {
+      "maxLevel": 5,
+      "promotesTo": "senior"
+    },
+    "keyboard": {
+      "maxLevel": 4
+    },
+    "mouse": {
+      "maxLevel": 4
+    },
+    "plant": {
+      "maxLevel": 3
+    }
+  },
+  "employeeProduction": {
+    "intern": {
+      "coinsPerHour": 10
+    },
+    "junior": {
+      "coinsPerHour": 25
+    },
+    "senior": {
+      "coinsPerHour": 50
+    },
+    "lead": {
+      "coinsPerHour": 100
+    },
+    "manager": {
+      "coinsPerHour": 200
+    }
+  },
+  "offlineProductionCap": 28800000,
+  "bossInspection": {
+    "intervalMin": 1800000,
+    "intervalMax": 3600000,
+    "windowDuration": 30000,
+    "reward": 50,
+    "penalty": 0
+  },
+  "bonuses": {
+    "hasIntern": {
+      "extraShotsAtStart": 0,
+      "coinMultiplier": 1.0
+    },
+    "hasJunior": {
+      "extraShotsAtStart": 1,
+      "coinMultiplier": 1.05
+    },
+    "hasSenior": {
+      "extraShotsAtStart": 1,
+      "coinMultiplier": 1.1
+    },
+    "hasLead": {
+      "extraShotsAtStart": 2,
+      "coinMultiplier": 1.15
+    },
+    "hasManager": {
+      "extraShotsAtStart": 2,
+      "coinMultiplier": 1.2
+    }
+  }
+}
